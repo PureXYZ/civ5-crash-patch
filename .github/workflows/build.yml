@@ -1,0 +1,129 @@
+# Builds the DLL from source, runs the self-checking tests and packages the player zip.
+# Pushing a tag v<version> (matching probe/version.h) publishes a GitHub release with the zip.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+# Read-only by default; only the release job can write (it creates the release).
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      LLVM_MINGW_TAG: '20261020'
+      LLVM_MINGW: llvm-mingw-20261020-ucrt-x86_64
+      # SHA-256 of that release's zip (the release asset's digest); a different download fails the build.
+      LLVM_MINGW_SHA256: fd5462b7f5d93b2ff981fcd3f9c7e427e47f3203c64ea91c27bcc444eebd74cd
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install LLVM-MinGW
+        shell: pwsh
+        run: |
+          $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$env:LLVM_MINGW_TAG/$env:LLVM_MINGW.zip"
+          $zip = "$env:RUNNER_TEMP\llvm-mingw.zip"
+          Invoke-WebRequest $url -OutFile $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:LLVM_MINGW_SHA256) { throw "llvm-mingw zip sha256 $hash, expected $env:LLVM_MINGW_SHA256" }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          "$env:RUNNER_TEMP\$env:LLVM_MINGW\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Build
+        shell: bash
+        run: sh probe/build.sh
+
+      - name: Test
+        shell: bash
+        working-directory: probe/build
+        run: |
+          # streamtest and audiotest drive the stubs themselves (CommandStreamTestRets set, so
+          # nothing in the test exe is patched); sparetest writes its own ini for a child run.
+          # mitest checks the mimalloc redirect (on by default) through msvcr90, like the game.
+          # msgqueuetest, uiqueuetest and luaheaptest link their module directly (no ini).
+          # (d3dstatstest needs a hardware D3D11 device; guardtest and luagctest need the game's Lua DLL.)
+          mkdir -p civprobe
+          printf '[probe]\r\nCommandStreamTestRets=0x1,0x1,0x1\r\n' > civprobe/civprobe.ini
+          ./CivilizationV_streamtest.exe
+          ./CivilizationV_audiotest.exe
+          ./CivilizationV_sparetest.exe
+          ./CivilizationV_mitest.exe
+          ./CivilizationV_stacktest.exe
+          ./CivilizationV_crttest.exe
+          ./CivilizationV_lastruntest.exe
+          ./CivilizationV_hangtest.exe
+          ./uiqueuetest.exe
+          ./msgqueuetest.exe
+          ./msgqueuetest.exe 1 2 1  # workers paused between header and payload
+          ./luaheaptest.exe
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path probe/version.h -Pattern 'CIVFIX_VERSION_STR "(.+)"').Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($env:GITHUB_REF_NAME -ne "v$v") { throw "tag $env:GITHUB_REF_NAME does not match probe/version.h ($v)" }
+            # The player READMEs name the version; a release must not ship the previous one's.
+            if (-not (Select-String -Path dist/README.txt -SimpleMatch "Civ V Crash Patch $v" -Quiet)) { throw "dist/README.txt doesn't say $v" }
+            if (-not (Select-String -Path README.md -SimpleMatch "CivVCrashPatch-$v.zip" -Quiet)) { throw "README.md doesn't say $v" }
+            if (-not (Select-String -Path CHANGELOG.md -SimpleMatch "## $v" -Quiet)) { throw "CHANGELOG.md has no '## $v' section" }
+          }
+          $d = "CivVCrashPatch-$v"
+          New-Item -ItemType Directory "$d/optional" | Out-Null
+          Copy-Item probe/build/msimg32.dll $d/
+          Copy-Item dist/README.txt $d/
+          Copy-Item dist/civprobe.ini $d/optional/
+          Copy-Item LICENSE $d/LICENSE.txt
+          Copy-Item THIRD-PARTY-NOTICES.md $d/THIRD-PARTY-NOTICES.txt
+          Compress-Archive $d "$d.zip"
+          $dll = (Get-FileHash $d/msimg32.dll -Algorithm SHA256).Hash.ToLower()
+          $zip = (Get-FileHash "$d.zip" -Algorithm SHA256).Hash.ToLower()
+          Set-Content checksums.txt "$dll  msimg32.dll`n$zip  $d.zip"
+          Get-Content checksums.txt
+          "VERSION=$v" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CivVCrashPatch-${{ env.VERSION }}
+          path: CivVCrashPatch-${{ env.VERSION }}
+
+      - name: Keep the release files
+        if: github.ref_type == 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-files
+          path: |
+            CivVCrashPatch-${{ env.VERSION }}.zip
+            checksums.txt
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-files
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Release notes: this version's CHANGELOG section plus the checksums.
+          VERSION="${GITHUB_REF_NAME#v}"
+          V_RE=$(printf '%s' "$VERSION" | sed 's/\./\\./g')  # 1.0.1 must not match 1.0.10
+          sed -n "/^## $V_RE\$/,/^## /p" CHANGELOG.md | sed '1d;/^## /d' > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then echo "no CHANGELOG section for $VERSION" >&2; exit 1; fi
+          printf '\n### SHA-256\n```\n%s\n```\n' "$(cat checksums.txt)" >> notes.md
+          gh release create "$GITHUB_REF_NAME" "CivVCrashPatch-$VERSION.zip" \
+            --title "Civ V Crash Patch $VERSION" --notes-file notes.md --latest

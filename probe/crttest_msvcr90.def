@@ -1,0 +1,6 @@
+LIBRARY msvcr90.dll
+EXPORTS
+    abort
+    _purecall
+    _invalid_parameter_noinfo
+    ?terminate@@YAXXZ

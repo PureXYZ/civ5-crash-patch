@@ -1,0 +1,5 @@
+* text=auto
+# Files players open in Notepad, and the ini the game reads.
+dist/*.txt text eol=crlf
+*.ini text eol=crlf
+*.sh text eol=lf

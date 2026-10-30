@@ -1,0 +1,67 @@
+name: Crash or problem report
+description: The game crashed or something looks wrong with the fix installed.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Two things help most, both in the game folder
+        (Steam > right-click the game > Manage > Browse local files):
+
+        1. **The events log.** First start the game once more (you can quit at the menu): it then
+           adds what Windows recorded about the crash to the old log. In the `civprobe` folder,
+           find the `events_YYYYMMDD_HHMMSS.log` from the game that crashed. The date and time in
+           its name are when that game *started*, so it's not the newest one.
+        2. **The crash files, if there are any.** Vox Populi and the Community Patch write them to the
+           `crashlogs` folder: `crashes.log` and a `CvMiniDump_....dmp` with the crash time in its name.
+           Put both in a zip (right-click > Send to > Compressed (zipped) folder), since GitHub
+           doesn't accept .dmp files.
+
+        **Everything you attach here is public.** The events log leaves out your Windows user
+        name, but a `.dmp` file can contain it (in the paths of mods under Documents) and other
+        details of your PC. If you'd rather not post it, leave the dump out and say so.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: When did it crash or freeze (loading, during a turn, scrolling, quitting...)? Was there an error message? About what time?
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Which mode did you launch?
+      options:
+        - DirectX 11
+        - DirectX 9
+        - Tablet
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: Mods, map size and number of players
+      description: For Vox Populi or the Community Patch, include the version (shown in the mod's name in the Mods menu, or in its download).
+      placeholder: e.g. Vox Populi 5.4.8 + EUI, Huge, 22 civs
+  - type: textarea
+    id: log
+    attributes:
+      label: Events log
+      description: Drag the events_....log from the game that crashed (civprobe folder) here.
+    validations:
+      required: true
+  - type: textarea
+    id: dump
+    attributes:
+      label: Crash files
+      description: |
+        Drag the zip of crashes.log and the matching CvMiniDump_....dmp (crashlogs folder) here.
+        No crashlogs folder, nothing in it from that time, or you'd rather not post the dump? Just say so.
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Screenshots of an error message, other overlays or tools running (ReShade, MSI Afterburner, Discord overlay...), anything that seems related.

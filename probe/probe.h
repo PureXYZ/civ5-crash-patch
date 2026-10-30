@@ -1,0 +1,153 @@
+// Shared between probe.c and alloctrack.c.
+#pragma once
+#include <windows.h>
+
+void log_event(const char *fmt, ...);
+HANDLE open_out(const WCHAR *name);
+void write_all(HANDLE h, const char *buf, int len);
+extern WCHAR g_session[32];
+
+// exes.c: the RVAs the parts that change exact places use, per build of the game exe. 0 = that
+// build has no such place (the part stays off there).
+typedef struct {
+    const char *name;  // "DX11", "tablet", "DX9"
+    DWORD timestamp, imageSize;
+    DWORD gameFault;   // the game's own NULL write at every start (probe.c)
+    // cmdstream.c
+    BYTE streamHalves; // 2: double-buffered streams (halves swap at the flip); 1: one set of arrays (DX9)
+    BYTE recordRound;  // the record allocator rounds sizes up to 256 bytes (tablet)
+    DWORD streamCtor, ctorRets[3], streamSplit, streamHalvesSite, streamBump, bounds[8];
+    DWORD flipCall, flip, streamReset, spareCallers[3], pairPush[2];
+    // msgqueue.c
+    DWORD queueObj, queuePass, queueFlip, queuePost, queueWalk, queueMainSite;
+    // uiqueue.c
+    DWORD uiProcess, uiOwner, uiLocked, uiGame, uiMode, uiSite, uiRet1, uiRet2, uiDispatch, uiListeners;
+    DWORD uiRegDirty, uiRegTeamMet;
+    // mapgrid.c
+    DWORD gridReserve, gridReserveFn, grids, gridFree;
+    // luaheap.c
+    DWORD luaHeapVar, luaAlloc;
+    // coretick.c
+    DWORD coreSite, coreAcc;
+    // luaguard.c
+    DWORD luaLock, luaUnlock;
+    // d3dstats.c
+    DWORD d3dContext, d3dFlushUse, d3dFlushVB, d3dFlushIB;
+} GameExe;
+const GameExe *game_exe(const BYTE *exe);  // the table for this image (timestamp and size), or NULL
+const GameExe *game_exe_dx11(void);        // for the tests' stand-in images
+BYTE *exe_import_slot(BYTE *exe, const char *name);  // by name; bound or not
+BYTE *exe_branch_target(BYTE *exe, const BYTE *p);   // E8/E9 rel32 at p, or NULL
+
+// Each part's check of the exe's code and data at its table's places, without changing anything:
+// NULL if all is as expected, else what differs. Used at start and by CivProbe_CheckExe (the
+// self-test, on exe files mapped without binding their imports).
+const char *cmdstream_check(BYTE *exe, const GameExe *g);
+const char *msgqueue_check(BYTE *exe, const GameExe *g);
+const char *uiqueue_check(BYTE *exe, const GameExe *g);
+const char *uiqueue_tables_check(BYTE *exe, const GameExe *g);
+const char *mapgrid_check(BYTE *exe, const GameExe *g);
+const char *luaheap_check(BYTE *exe, const GameExe *g);
+const char *coretick_check(BYTE *exe, const GameExe *g);
+const char *smallblock_check(BYTE *exe, const GameExe *g);
+const char *luaguard_check(BYTE *exe, const GameExe *g);
+const char *d3dstats_check(BYTE *exe, const GameExe *g);
+
+// alloctrack.c
+void alloc_init(const WCHAR *ini);
+void alloc_report(const char *label);
+int alloc_enabled(void);
+HMODULE alloc_crt_module(void);  // the tracked CRT (AllocCrt), or NULL
+LONG alloc_est_live_mb(void);     // estimated live bytes of the tracked CRT, in MB
+
+// luagc.c
+void luagc_init(const WCHAR *ini);
+void luagc_report(void);
+// The Lua state of tid's running wrapped DB call, or NULL; *arg is where that call's first
+// argument sits on tid's stack, and the word below it equals *ret while the call runs.
+struct lua_State *luagc_thread_call(DWORD tid, void **arg, const void **ret);
+DWORD alloc_report_seconds(void);
+
+// mialloc.c
+void mialloc_init(const WCHAR *ini);  // before luagc_init
+void mialloc_report(void);
+void *mialloc_replacement(void *crtFn);  // the mimalloc stand-in for a CRT export, or crtFn
+__declspec(dllexport) int CivProbe_IsMimalloc(const void *p);  // p is in a mimalloc segment (MiMalloc=1)
+
+// luaguard.c
+void luaguard_init(const WCHAR *ini);
+void luaguard_report(void);
+
+// audioguard.c
+void audioguard_init(const WCHAR *ini);
+void audioguard_tick(void);  // sampler thread
+
+// cmdstream.c
+void cmdstream_init(const WCHAR *ini);
+void cmdstream_report(void);
+
+// watch.c
+void watch_init(const WCHAR *ini);
+void watch_tick(void);  // sampler thread
+void watch_report(void);
+
+// modules.c
+void modules_init(void);  // DllMain: logs non-system DLLs now and as they load
+const char *module_at(const void *addr, ULONG_PTR *base);  // lock-free; NULL if in no known module
+void modules_log_stack(const CONTEXT *ctx, const NT_TIB *tib, int overflow);  // exception path: return-address candidates
+void modules_log_stack_copy(const void *words, size_t bytes);  // a stack copied from a suspended thread
+
+// crtfail.c
+void crtfail_init(const WCHAR *ini);
+void crtfail_note_cxx(const EXCEPTION_RECORD *er);  // exception path: remembers a C++ exception's type
+void crtfail_log_last_cxx(void);  // at exit
+void log_memory_now(const char *when);  // probe.c: free address space, no heap calls
+
+// coretick.c
+void coretick_init(const WCHAR *ini);
+void coretick_report(void);
+
+// smallblock.c
+void smallblock_init(const WCHAR *ini);
+void smallblock_tick(void);  // sampler thread
+
+// uiqueue.c
+void uiqueue_init(const WCHAR *ini);
+void uiqueue_report(void);
+
+// mapgrid.c
+void mapgrid_init(const WCHAR *ini);
+void mapgrid_report(void);
+void mapgrid_tick(void);  // sampler thread
+
+// gpuwatch.c
+void gpuwatch_init(const WCHAR *ini);
+void gpuwatch_tick(void);  // sampler thread
+void gpuwatch_report(void);
+
+// luaheap.c
+void luaheap_init(const WCHAR *ini);  // after mialloc_init
+void luaheap_report(void);
+
+// d3dstats.c
+void d3dstats_init(const WCHAR *ini);
+void d3dstats_tick(void);  // sampler thread
+void d3dstats_report(void);
+
+// msgqueue.c
+void msgqueue_init(const WCHAR *ini);  // DllMain (takes the main thread's id)
+void msgqueue_tick(void);  // sampler thread
+void msgqueue_report(void);
+
+// hang.c
+void hang_init(const WCHAR *ini);
+void hang_tick(void);  // sampler thread
+int hang_catch_fault(void);  // exception handler: doesn't return if the fault is the watchdog's Lua stack read
+
+// lastrun.c
+void lastrun_init(const WCHAR *dir, const WCHAR *ini);  // after the events log is open
+
+// topdown.c
+void topdown_init(const WCHAR *ini);
+void topdown_report(void);
+void topdown_drain(void);  // sampler thread: writes logged reservations

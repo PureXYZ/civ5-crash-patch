@@ -1,0 +1,3 @@
+LIBRARY msvcp90.dll
+EXPORTS
+    ?_Xlen@_String_base@std@@SAXXZ

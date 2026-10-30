@@ -1,0 +1,15 @@
+LIBRARY msvcr90.dll
+EXPORTS
+    malloc
+    free
+    realloc
+    calloc
+    _aligned_malloc
+    _aligned_free
+    _strdup
+    _get_heap_handle
+    _set_sbh_threshold
+    ??2@YAPAXI@Z
+    ??3@YAXPAX@Z
+    ??_U@YAPAXI@Z
+    ??_V@YAXPAX@Z

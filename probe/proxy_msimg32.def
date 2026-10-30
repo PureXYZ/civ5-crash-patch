@@ -1,0 +1,15 @@
+LIBRARY msimg32.dll
+EXPORTS
+    vSetDdrawflag=stub_vSetDdrawflag @1
+    AlphaBlend=stub_AlphaBlend @2
+    DllInitialize=stub_DllInitialize @3
+    GradientFill=stub_GradientFill @4
+    TransparentBlt=stub_TransparentBlt @5
+    CivProbe_SelfTest @100
+    CivProbe_IsMimalloc @101
+    CivProbe_StreamAlloc=CivProbe_StreamAlloc@8 @102
+    CivProbe_SplitStub @103
+    CivProbe_TestGrant @104
+    CivProbe_HalvesStub @105
+    CivProbe_BoundStub @106
+    CivProbe_TestFlip @107

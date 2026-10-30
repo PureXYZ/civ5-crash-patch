@@ -1,0 +1,17 @@
+# Build output and packaging
+probe/build/
+/CivVCrashPatch-*
+/CivVCrashFix-*
+/checksums.txt
+/notes.md
+*.zip
+
+# Crash dumps and Python caches
+*.dmp
+__pycache__/
+
+# mimalloc: only what the build needs is vendored
+/probe/third_party/mimalloc/*
+!/probe/third_party/mimalloc/include/
+!/probe/third_party/mimalloc/src/
+!/probe/third_party/mimalloc/LICENSE

@@ -1,0 +1,4 @@
+LIBRARY msvcr90.dll
+EXPORTS
+    malloc
+    free

@@ -1,0 +1,9 @@
+LIBRARY mss32.dll
+EXPORTS
+    _AIL_sample_status@4=AIL_sample_status@4
+    _AIL_set_sample_3D_position@16=AIL_set_sample_3D_position@16
+    _AIL_allocate_sample_handle@4=AIL_allocate_sample_handle@4
+    _AIL_release_sample_handle@4=AIL_release_sample_handle@4
+    _AIL_sample_volume_pan@12=AIL_sample_volume_pan@12
+    _fake_calls@0=fake_calls@0
+    _fake_slot@0=fake_slot@0

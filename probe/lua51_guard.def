@@ -1,0 +1,16 @@
+LIBRARY lua51_Win32.dll
+EXPORTS
+    luaL_newstate
+    luaL_ref
+    luaL_unref
+    lua_pushboolean
+    lua_close
+    lua_newstate
+    lua_newthread
+    lua_settop
+    lua_gc
+    lua_newuserdata
+    lua_createtable
+    lua_pushcclosure
+    lua_setfield
+    lua_setmetatable

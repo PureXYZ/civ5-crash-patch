@@ -1,0 +1,3 @@
+LIBRARY msvcr90.dll
+EXPORTS
+    _set_sbh_threshold
