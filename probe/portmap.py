@@ -45,6 +45,11 @@ CATALOG = [
     # d3dstats.c (diagnostic; D3D11 exes only)
     ('d3dContext', 'data', 0x2c10584), ('d3dFlushUse', 'code', 0x4c12fb), ('d3dFlushVB', 'code', 0x4c1319),
     ('d3dFlushIB', 'code', 0x4c13d8),
+    # fluidpool.c
+    ('fluidFog', 'data', 0x9a94d8), ('fluidInit', 'code', 0x28f780), ('fluidSeed', 'code', 0x17eeb0),
+    ('fluidReset', 'code', 0x109b2a), ('fluidStepCall', 'code', 0x109c5d), ('fluidStep', 'code', 0x2ad1f0),
+    ('fluidJob', 'code', 0x1eb5b0), ('fluidStepFn', 'code', 0x2b9f60), ('fluidPassFn', 'code', 0x381a20),
+    ('fluidMerge', 'code', 0xd07d0), ('fluidDelete', 'code', 0x413d10), ('fluidFree', 'code', 0x3658c3),
 ]
 
 

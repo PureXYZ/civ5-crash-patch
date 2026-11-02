@@ -305,13 +305,13 @@ __declspec(dllexport) int CivProbe_CheckExe(const WCHAR *exePath, char *report, 
         {"uiqueue tables", uiqueue_tables_check}, {"mapgrid", mapgrid_check}, {"luaheap", luaheap_check},
         {"coretick", coretick_check}, {"smallblock", smallblock_check}, {"luaguard", luaguard_check},
         {"d3dstats", d3dstats_check}, {"texhandles", texhandles_check}, {"terrain", terrain_check},
-        {"intro", intro_check}, {"memwarn", memwarn_check},
+        {"intro", intro_check}, {"memwarn", memwarn_check}, {"fluidpool", fluidpool_check},
     };
     int o = snprintf(report, cap, "%s:", g->name), ok = 1;
     for (size_t i = 0; i < sizeof parts / sizeof parts[0] && o < cap; i++) {
         const char *why = parts[i].check(exe, g);
         if (why && !(parts[i].check == d3dstats_check && !g->d3dContext) && !(parts[i].check == texhandles_check && !g->texPool) &&
-            !(parts[i].check == terrain_check && !g->terrainObj))
+            !(parts[i].check == terrain_check && !g->terrainObj) && !(parts[i].check == fluidpool_check && !g->fluidSeed))
             ok = 0;
         o += snprintf(report + o, cap - o, " %s=%s", parts[i].name, why ? why : "ok");
     }
@@ -939,6 +939,7 @@ static DWORD WINAPI sampler(LPVOID unused)
             d3dstats_report();
             texhandles_report();
             terrain_report();
+            fluidpool_report();
             watch_report();
             cmdstream_report();
             soundlog_report();
@@ -1103,6 +1104,7 @@ static void start_probe(void)
     texhandles_init(ini);
     terrain_init(ini);  // after texhandles_init: the table must have room for the textures
     intro_init(ini);
+    fluidpool_init(ini);
 
     g_overflowReq = CreateEventW(NULL, FALSE, FALSE, NULL);
     g_overflowDone = CreateEventW(NULL, FALSE, FALSE, NULL);
@@ -1145,6 +1147,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         d3dstats_report();
         texhandles_report();
         terrain_report();
+        fluidpool_report();
         watch_report();
         cmdstream_report();
         soundlog_report();

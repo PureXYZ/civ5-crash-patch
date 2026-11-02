@@ -9,6 +9,10 @@
   says so at the top of the screen: save, quit to the desktop and load the save again. Until now
   this was only in the log, which players read after the crash. It changes nothing in the game or
   the save.
+- **Less memory for the fog of war.** The drifting fog over unexplored land kept a 24 MB buffer
+  for each of the game's job threads and used almost none of it. Each buffer is now only as big as
+  the fog can need, and grows when it needs more. On a late Huge save they held 8 MB instead of
+  96 MB, and 58 MB more memory was free 10 minutes in. The fog looks the same. DirectX 11 only.
 
 ### Details
 
@@ -22,6 +26,19 @@
   checked in all three exes): in the main menu it waits, checked at most once a second.
   Once per crossing; armed again 100 MB above the line. `memwarn:` lines in the events log. New
   self-checking test `memwarntest` (needs the game's `lua51_Win32.dll`).
+- **Fog of war buffers: `FluidPools`** (on by default;
+  `FluidPools=0` turns it off; DirectX 11). The drifting fog over unexplored land is a particle
+  simulation, and the game gives it a 24 MB buffer per job thread (`MaxSimultaneousThreads`) that
+  each fog step barely uses: on a late Huge save the busiest held 8,731 of its 196,608 particles.
+  Each buffer is now as big as one step could ever need (four per block of particles in the part
+  of the map that step moves, so no split of the work over the threads can run past it), grows at
+  once when the view takes in more and shrinks after 30 s without. Loading a map puts all of its
+  particles (about 10 a plot) into the first buffer, which now grows as needed, so a map with more
+  than 196,608 no longer writes past it. In a 32-minute test on a late Huge save: 8 MB instead of
+  96 MB with 4 threads, 58 MB more free at 10 minutes, the fog unchanged. Two places in the game's
+  code change, both outside Steam's checked code (checked against all 284 of its loops); in the
+  DirectX 9 and tablet exes they are checked, so it stays off there. `fluidpooltest` runs the
+  game's own seeding function against buffers that end at no-access pages.
 
 ## 1.3.0
 

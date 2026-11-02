@@ -149,6 +149,7 @@ overhead was about 340 MB, which is why large blocks stay on the game's heap.
 | `LuaHeapMimalloc` | 1 | Keeps the game's Lua objects in mimalloc instead of a Windows heap that never shrinks. 0 = off. |
 | `DbHeapMimalloc` | 1 | Keeps the game database's SQLite memory in mimalloc instead of a Windows heap that keeps its load-time peak. 0 = off. |
 | `SkipIntroPlayer` | 2 | Doesn't start the intro movie's video player at all (it loads about 75 MB of video and Direct3D 9 drivers that stay for the whole session), so the opening movie and logos don't play. 1 = only when the game's own **Skip intro video** option is on. 0 = off. |
+| `FluidPools` | 1 | Gives the fog of war's particle buffers only the room each fog step can use, instead of the game's 24 MB per job thread. DirectX 11 only. 0 = off. |
 
 **`MapGridReserve`.** At startup the game reserves room for two map detail grids as large as the
 biggest map it supports (152 × 96), whatever map you play. Loading a map sizes them for that map
@@ -191,6 +192,23 @@ video** is on) or `0`. No game code is changed (the exe's `CoCreateInstance` imp
 the movie's one call). In the DirectX 9 exe the Direct3D 9 driver is the game's own renderer, so
 there it saves DirectShow, DirectDraw and the decoders only. The log's `intro:` line says when it
 skipped the player.
+
+**`FluidPools`.** The drifting fog over unexplored land is a particle simulation. At startup the
+game gives it one buffer per job thread (`MaxSimultaneousThreads` in `config.ini`), 24 MB each,
+whatever the map. Each fog step only moves the particles in view, and a buffer only carries them
+through one step: on a late Huge save the busiest buffer held 8,731 of its 196,608 particles. The
+fix makes each buffer exactly as big as one step could ever need (four particles for every block of
+particles in that step's part of the map, so however the game spreads the work over its threads,
+none can run past its end), grows it at once when the view takes in more, and shrinks it again
+after 30 seconds without. When a map loads, the game puts every particle of the map into the first
+buffer at once (66,788 on that save, about 10 a plot); that buffer grows as needed, so a map whose
+fog has more than the 196,608 particles the game's 24 MB holds no longer writes past it. The
+particles and the fog itself are unchanged; only where the buffers are changes. From the first map
+load on, with 4 threads, the buffers held 8 MB instead of 96 (88 MB of address space back; about
+176 MB with 8 threads), and free memory at 10 minutes was 58 MB higher than before on the same
+save. It changes two places in the game's code, outside Steam's checked code; in the DirectX 9
+and tablet exes the same places are checked, so there it stays off. The log's `fluidpool:` lines say when the game's
+buffers were given back and, in each report, how big they are and the most any one held.
 
 ---
 

@@ -10,6 +10,9 @@
 // - DirectX 9: the render command stream is single-buffered (one set of arrays, groups 0x90
 //   bytes, no frame flip that swaps halves; a reset function zeroes the counters instead), and
 //   the third command appender has no list. The exe's aligned delete has FSBADeallocate inlined.
+// - fluidpool (DX11 only): the other two have the same fluid fog code at portmap's addresses
+//   (tablet 0x372490 / 0x16568d, DX9 0x99900 / 0x3acb7d), but there one or both of the places it
+//   changes are in code Steam's CEG checksums (the complete scan of all 284 range loops).
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <string.h>
@@ -65,6 +68,8 @@ static const GameExe kExes[] = {
         .terrainHandArray = 0x1bd086, .terrainRelease = 0x2ccbfc, .terrainSort = 0x3ba990, .terrainLists = 0x865e0,
         .terrainMgrLoad = 0x11b090, .terrainAlloc = 0x1c60b0,
         .introCreate = 0x21a3f4, .introSkipCopy = 0x135742, .skipIntro = 0x8cf0c5,
+        .fluidInit = 0x28f780, .fluidSeed = 0x17eeb0, .fluidReset = 0x109b2a, .fluidStepCall = 0x109c5d,
+        .fluidJob = 0x1eb5b0, .fluidStepFn = 0x2b9f60, .fluidPassFn = 0x381a20, .fluidMerge = 0xd07d0, .fluidFree = 0x3658c3,
     },
     {
         // portmap.py; the record allocator (rounds up to 256 bytes), the Lua lock wrappers and the
@@ -88,6 +93,7 @@ static const GameExe kExes[] = {
         .luaLock = 0x505f60, .luaUnlock = 0x505f70,
         .d3dContext = 0x2c12584, .d3dFlushUse = 0x4c337b, .d3dFlushVB = 0x4c3399, .d3dFlushIB = 0x4c3458,
         .introCreate = 0x2ca374, .introSkipCopy = 0x2b1ed2, .skipIntro = 0x8d0b45,
+        // No fluidpool: its seeding (0x372490) lies in CEG-checked code here.
     },
     {
         // portmap.py; the command stream (a different layout), the aligned delete, the Lua lock
@@ -110,6 +116,7 @@ static const GameExe kExes[] = {
         .coreSite = 0x2e6b43, .coreAcc = 0x8bf764,
         .luaLock = 0x4f78a0, .luaUnlock = 0x4f78b0,
         .introCreate = 0x1f7e24, .introSkipCopy = 0x2742e2, .skipIntro = 0x8bef0d,
+        // No fluidpool: its seeding (0x99900) and step launch call (0x3acb7d) lie in CEG-checked code here.
     },
 };
 

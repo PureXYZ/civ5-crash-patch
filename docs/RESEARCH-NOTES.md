@@ -48,7 +48,8 @@ In the order they happened:
    [The event queue overflow](#the-load-crashes-were-the-games-event-queue-overflowing-2026-10-30-0500) ·
    [Lua heap on mimalloc](#lua-heap-on-mimalloc-works-session-20261030_113554-144-min-clean-with-map-grid-v3) ·
    [Conclusion on the GPU regions](#conclusion-on-the-gpu-driver-regions-2026-10-30) ·
-   [Second try: an upload ring](#gpu-driver-regions-second-try-an-upload-ring-of-our-own-2026-11-02)
+   [Second try: an upload ring](#gpu-driver-regions-second-try-an-upload-ring-of-our-own-2026-11-02) ·
+   [The fog's particle pools](#the-fog-of-wars-particle-pools-fluidpools-2026-11-02)
 9. **Grey terrain tiles.**
    [Page-in rate and texture pool](#grey-tiles-after-scrolling-far-2026-10-30-terrain-page-in-and-base-texture-pool) ·
    [The whole map in the pool, and Steam's CEG](#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01)
@@ -2284,7 +2285,8 @@ render anyway.
   ([below](#leader-head-texture-data-gpu-texture-decode-already-keeps-it-out-of-memory-2026-11-02)).
 - **Fluid particle pools**: 4 x 24 MB committed (FluidParticles.cpp l.623), 12.4 / 0.5 / 0.7 /
   0.5 MB touched. A smaller pool needs to know what the code does when one fills;
-  `MaxSimultaneousThreads` sets how many there are.
+  `MaxSimultaneousThreads` sets how many there are. Done: `FluidPools`, 8 MB instead of 96
+  ([below](#the-fog-of-wars-particle-pools-fluidpools-2026-11-02)).
 - **NVIDIA's 128 MB reservation** (NvMemMapStorage, nothing committed): the driver's.
 - **mimalloc's own overhead**: ~80 MB (8%).
 
@@ -2668,3 +2670,119 @@ and without calling Lua outside the game's Lua lock.
   the first display (`shownYet`), which evidently comes only once its screen updates after the load,
   so the loading screen didn't use up the 8 seconds. No exception or freeze. The test line was then removed
   from the game's ini.
+
+## The fog of war's particle pools (FluidPools, 2026-11-02)
+
+Can the fluid fog's per-thread particle pools (4 x 24 MB, `FluidParticles.cpp` l.623, "What's left"
+above) be smaller? Yes, if each is sized before every step to what that step can write. Built as
+fluidpool.c (`FluidPools=1`, on by default, DX11 only); 8 MB instead of 96 MB in game.
+
+### How the pools are used (DX11, exe+RVA)
+
+- **The object** is the fog object exe+0x9a94d8 + 8: pool slots at +0x40 (up to 256), counts at
+  +0x440, the number of pools at +0x90c (`MaxSimultaneousThreads`, read at exe+0x41d870), the
+  threaded flag at +0x909 (`[0xd90f94] == 3`, i.e. always with fluid fog on: there is no
+  single-threaded path to use instead), the grid at +0x904.
+- **Capacity:** a constant in the init (exe+0x28f780): new 0x1800000 bytes, the vector constructor
+  over 0x30000 entries of 0x80 bytes (it zeroes 3 floats each), then memset 24 MB. Nothing stores
+  the capacity and nothing checks against it.
+- **The grid** (exe+0x329dd4, sized from the map at load): W x H cells (+0x10, +0x14); per cell up
+  to 8 SoA blocks of 4 particles (+0x38, 0x100 bytes a block) with the block count at
+  [+0x3c] + 32 x cell, and an AoS insert buffer of 32 particles a cell (+0x28, counts +0x2c).
+- **A step.** Each update (exe+0x109990) runs 3 substeps ([obj+0x840]) over the cells in view plus
+  a margin (the view rect at +0x8cc..+0x8dc, margin +0x844). A substep zeroes the counts
+  (exe+0x109b2a), runs a density pass (exe+0x267d50, body exe+0x275860, no pool access), launches
+  the step jobs (exe+0x2ad1f0, called at exe+0x109c5d, cdecl range/body/flag; rows [1]..[0],
+  columns [4]..[3]) and merges (exe+0xd07d0: the cells' AoS counts cleared, each pool's
+  [0, count) inserted with exe+0x17d610, which drops past 32 a cell, then AoS to SoA). A job
+  (exe+0x1eb5b0) hands each block to the step (exe+0x2b9f60) or, at the rect's edge, the
+  pass-through (exe+0x381a20). Both write at most one particle per live lane into
+  `pool[thread][count[thread]++]` (thread from the TLS map at exe+0x41d930): at most 4 per block,
+  no bound check. So in a substep any one pool can get every particle of the range, depending on
+  how the jobs fall on the threads, and no more than 4 x the blocks in it.
+- **Seeding.** A map load (exe+0x68efd, a load stage) calls exe+0x1b6af0: grid setup, then one
+  particle per lattice point over the whole map (jittered with rand) into pool 0 through
+  exe+0x17eeb0 (writes the fields through [ecx+0x40] each time, `inc [ecx+0x440]`), then
+  exe+0x1bfc50 merges everything (and the other pools' stale counts) into the grid. That is what
+  pool 0's 24 MB is for: a seed of more than 196,608 particles would write past it in the
+  unmodified game (not seen; on the test save the seed was 66,788). The old "12.4 MB touched" of
+  pool 0 is that seed on the 97 x 66 map.
+- **Nothing makes particles after seeding:** the only other writers are the step and the
+  pass-through (one out per one in), and the merge drops the excess, so the total only falls.
+- **Readers:** only the merge. Writers: the three above. The destructor (exe+0x365810) frees each
+  pool with the game's delete (exe+0x413d10: FSBADeallocate, else the free import); the pools come
+  from the game's new (exe+0x42c090: small-object allocator, else the malloc import).
+
+### What it depends on
+
+- **The map:** the seed (pool 0 at load) scales with the map; the grid with the map's bounds.
+- **The zoom:** a step covers the view plus the margin, so zooming out raises it. On the test save
+  (the user was asked to zoom fully out and pan) the largest step had 10,660-10,832 particles,
+  ~16% of the seed.
+- **The fog:** particles cover the whole map; how much is explored hardly changes a step.
+- **The threads:** the busiest pool took 8,731 particles in a step, the others 2,891-2,980 (pool 0
+  is the thread that runs most jobs).
+
+### The fix
+
+The step and the job are in CEG-checked code (exe+0x2d00f0 and exe+0x30df00; exe+0x173d0 and
+exe+0x393c0), so a bound per write is out. Two places are outside every range: checked with the
+complete scanner from the 13511 session (all 284 range loops, not the 26 stubs the committed
+cegall.py sees): exe+0x109c5d (the step launch call) and exe+0x17eeb0 (the seeding's particle).
+
+- **step_stub** (the call's rel32): counts the blocks in the range, makes every pool hold 4 x that
+  (the counts were just zeroed and no job runs, so a pool is swapped for a new block without
+  copying), calls the launcher, then notes how full each pool got. Size: need + 25% + 4,096
+  particles, in whole MB, at least 1 MB; grows when a step needs more than it holds, shrinks to
+  what the last 30 s needed when it holds more than twice that. The game's own pools are replaced
+  at their first step.
+- **seed_stub** (`mov eax,[ecx+440h]` -> `call; nop`): before a particle would pass pool 0's end,
+  grows it (to 196,608, then by half), copying what is in it; the first call per load also swaps
+  the other pools (still the game's) for small blocks, copying the stale entries the post-seed
+  merge reads.
+- Blocks come from the exe's malloc import (as the game's new gives them) and go to the game's
+  delete (as its destructor frees them). Everything happens on the game's own thread at a point
+  where no job uses the pools; swapping the startup pools from the sampler at the main menu was
+  left out (a map load can start in between).
+- **fluidpool_check** verifies the pool init (lea, sizes 0x1800000 / 0x30000 x 0x80, slot, memset,
+  count, loop), the seeding function (its entry and `inc; ret 14h`), the substep's reset loop, the
+  step call and the merge call after it, the launcher's range checks, the job's cell and block
+  indexing and its two calls, the step's 4 lanes and its one increment (10 count references to its
+  `ret 10h`), the pass-through's 4 lanes, the merge's pool reads, and the destructor's delete
+  calling the free import. The DX9 and tablet exes have the same code (portmap.py found every
+  site) but there the seeding (both) and the step call (DX9) are inside CEG ranges, so they aren't
+  mapped.
+- **Rejected:** a smaller request at the allocation site (the vector constructor and memset after
+  it write 24 MB, and they're inside exe+0x2d00f0's ranges); reserving and committing on demand
+  (commit, not address space); one fixed smaller size (no bound: pool 0 needs the whole seed and
+  any pool can get a whole step); a bound per write (CEG).
+- **fluidpooltest:** the check on all three exes; the patched code decoded; on a stand-in object
+  whose pools end at no-access pages, the game's own seeding function run from the mapped exe
+  writes 200,000 particles intact (pool 0 grows past 196,608 once), the step stub with a launcher
+  that puts a whole range into one pool, shrinking only after 30 s, a range past the grid, no room,
+  registers. In CI (skipped without the game).
+
+### In game (same save as 022048-050341, 5,505 non-deep-water tiles, 4 threads)
+
+- **Session 20261102_051319 (3.2 min, clean):** VA maps: four 24 MB blocks at 60 s, one at 80 s
+  (the seeding gave back three), none after the first step. Seed 66,788, largest step 10,832,
+  10,242 steps, 8 resizes. Too short: free space only settles after 4-5 minutes, and before that
+  sessions differ by up to 90 MB.
+- **Session 20261102_052059 (32 min, clean quit; asked to scroll, zoom fully out, play turns):**
+  seeding at 112 s gave back 3 pools (27 MB held), the first step at 131.6 s the last (4 MB held);
+  then 4 x 2 MB all session, most in a step 8,731 / 2,891 / 2,980 / 2,904, largest step 10,660,
+  207,871 steps, 8 resizes, no overflow, no allocation failure, no exception but the game's own at
+  exe+0x523dcb. The user saw nothing wrong with the fog.
+
+| Session | 10 min | 20 min | 30 min | lowest |
+|---|---|---|---|---|
+| 025737 (before) | 998 MB free | - | - | 991 MB |
+| 045111 (before, memwarn build) | 1016 (9.5 min) | - | - | 1010 MB |
+| 052059 (FluidPools) | 1057 MB | 1058 MB | 1062 MB | 1050 MB |
+
+- **VA maps at 10 min, 025737 -> 052059:** private allocations of 16 MB or more -96.2 MB (the four
+  pools), 1-4 MB +11.3 MB (with the 4 x 2 MB), free +58.4 MB, mimalloc +28 MB. The mimalloc part is
+  this session's game data: its live small blocks were 773 MB at 10 minutes against 759 MB in
+  025737 (and 783 MB in 022048 on the same save); FluidPools makes no small blocks.
+- So: 88 MB of address space back with 4 threads (with 8, about 176 MB), from the first map load
+  on; the game's 96 MB stays until then (the startup and main menu).

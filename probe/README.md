@@ -58,6 +58,7 @@ Most tests are named `CivilizationV_*.exe` so the probe activates inside them. T
 | `luaheaptest` | The Lua heap wrappers, 4 threads. |
 | `texhandlestest` | The game's texture handle pool code, grown to 16,384 and to 32,768 handles, in the installed DX11 exe mapped as an image: every handle, release and reuse across the old limit, the record getters. Skipped without the game. |
 | `terraintest` | `TerrainBaseSlots`' three changed instructions in the installed DX11 exe mapped as an image, its two stubs, and the top-up through the hooked `qsort` on a stand-in terrain object and tile manager. Skipped without the game. |
+| `fluidpooltest` | `FluidPools`' two changed places in the installed DX11 exe mapped as an image (and that the other two exes aren't mapped); on a stand-in particle object whose pools end at no-access pages, the game's own seeding function writing 200,000 particles, and the step stub with a launcher that sends a whole range to one pool: sizing, shrinking after 30 s, no room, registers kept. Skipped without the game. |
 
 The last five link their module directly and need no ini.
 
@@ -107,6 +108,7 @@ build/CivilizationV_probetest.exe "C:\Program Files (x86)\Steam\steamapps\common
 | `luaheap.c` | The game's Lua and SQLite heaps on mimalloc; both Windows heaps made with nothing up front | on (`LuaHeapMimalloc=1`, `DbHeapMimalloc=1`) |
 | `mapgrid.c` | Gives back the map detail grids' startup reserve before a map loads | on (`MapGridReserve=1`) |
 | `intro.c` | The intro movie's video player (and the Direct3D 9 driver it loads) isn't started; 1 = only with the game's Skip intro video on | on (`SkipIntroPlayer=2`) |
+| `fluidpool.c` | The fog of war's per-thread particle pools sized to what each step can write, instead of 24 MB each (DX11) | on (`FluidPools=1`) |
 | **Graphics** | | |
 | `texhandles.c` | Room for more than the game's 12,288 textures | on (`TextureHandles=16384`) |
 | `terrain.c` | Each map gets the terrain base textures it needs, so a big map stays textured | on (`TerrainBaseSlots=22528`) |
