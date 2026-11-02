@@ -524,6 +524,8 @@ void luagc_init(const WCHAR *ini)
     if (reg) reg(0, on_dll_notify, NULL, &cookie);  // a reload, or a target loaded later (tests)
 }
 
+int luagc_on(void) { return g_thunks != NULL; }  // luagc_init got as far as the thunk page
+
 void luagc_report(void)
 {
     if (!g_stepMb || !g_thunks) return;

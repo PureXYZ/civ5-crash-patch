@@ -197,18 +197,21 @@ skipped the player.
 game gives it one buffer per job thread (`MaxSimultaneousThreads` in `config.ini`), 24 MB each,
 whatever the map. Each fog step only moves the particles in view, and a buffer only carries them
 through one step: on a late Huge save the busiest buffer held 8,731 of its 196,608 particles. The
-fix makes each buffer exactly as big as one step could ever need (four particles for every block of
-particles in that step's part of the map, so however the game spreads the work over its threads,
-none can run past its end), grows it at once when the view takes in more, and shrinks it again
-after 30 seconds without. When a map loads, the game puts every particle of the map into the first
+fix makes each buffer as big as one step could ever need, plus a quarter (four particles for every
+block of particles in that step's part of the map, so however the game spreads the work over its
+threads, none can run past its end), grows it at once when the view takes in more, and shrinks it
+again after 30 seconds without. If memory is so short that a buffer can't grow, that fog step is
+skipped instead, so the fog in view loses its particles but nothing is written past the buffer.
+When a map loads, the game puts every particle of the map into the first
 buffer at once (66,788 on that save, about 10 a plot); that buffer grows as needed, so a map whose
 fog has more than the 196,608 particles the game's 24 MB holds no longer writes past it. The
 particles and the fog itself are unchanged; only where the buffers are changes. From the first map
 load on, with 4 threads, the buffers held 8 MB instead of 96 (88 MB of address space back; about
 176 MB with 8 threads), and free memory at 10 minutes was 58 MB higher than before on the same
 save. It changes two places in the game's code, outside Steam's checked code; in the DirectX 9
-and tablet exes the same places are checked, so there it stays off. The log's `fluidpool:` lines say when the game's
-buffers were given back and, in each report, how big they are and the most any one held.
+and tablet exes the same places are checked, so there it stays off. The log's `fluidpool:` lines
+say when the game's buffers were given back and, in each report, how big they are, the most any
+one held and how many steps were skipped.
 
 ---
 
@@ -329,8 +332,9 @@ for everything else. Lowering the game's terrain detail doesn't free any on a bi
 `TerrainBaseSlots` is on, because every tile still gets its two textures.
 
 **`TerrainBaseSlots`.** Every land or shallow-water tile of the map needs two base textures before
-it is drawn, and the game has 6,144 of them: 3,072 tiles. That is under half of a Huge map (8,297
-of the 10,752 tiles of a Sapiens Huge map aren't deep water). Tiles you scroll away from keep
+it is drawn, and the game has 6,144 of them: 3,072 tiles. That is under a third of a Huge map, and
+under half of the tiles that need them (8,297 of the 10,752 tiles of a Sapiens Huge map aren't
+deep water). Tiles you scroll away from keep
 their textures until the game needs them elsewhere, so when you scroll far, the tiles there are
 grey until the game rebuilds them, 8 per frame: about a second for a screen, longer during AI
 turns. With this fix each map gets what it needs: when it has finished loading,

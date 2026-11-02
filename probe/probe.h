@@ -95,6 +95,7 @@ LONG alloc_est_live_mb(void);     // estimated live bytes of the tracked CRT, in
 // luagc.c
 void luagc_init(const WCHAR *ini);
 void luagc_report(void);
+int luagc_on(void);  // after luagc_init: the DB call wrappers are on (memwarn.c shows its warning there)
 // The Lua state of tid's running wrapped DB call, or NULL; *arg is where that call's first
 // argument sits on tid's stack, and the word below it equals *ret while the call runs.
 struct lua_State *luagc_thread_call(DWORD tid, void **arg, const void **ret);

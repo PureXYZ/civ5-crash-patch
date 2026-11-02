@@ -20,8 +20,9 @@
 // - on the main thread (the one that loads this DLL: the game's UI thread, thread 0 in dumps);
 // - while that thread holds the exe's Lua lock (luaguard.c finds it from its wrappers' code);
 // - at the return of a database call that luagc.c wraps (a C function called from Lua, the same
-//   point where a script's own call of an Event would run), and not while Lua is running
-//   finalizers or luagc is collecting (luagc.c checks both before calling memwarn_show);
+//   point where a script's own call of an Event would run; with luagc off, log only), and not
+//   while Lua is running finalizers or luagc is collecting (luagc.c checks both before calling
+//   memwarn_show);
 // - inside lua_cpcall, so a Lua error is caught and the stack is left as it was;
 // - only when the engine's delegate list for type 0x73 isn't empty: in the main menu and before
 //   the in-game screen loads nothing listens (in game: 2, InGame.lua and EUI's panel), and the
@@ -261,6 +262,10 @@ void memwarn_init(const WCHAR *ini)
     if (g_inGame && why) {
         g_inGame = 0;
         log_event("memwarn: the in-game warning needs the game's GameplayAlertMessage listener list (%s); log only", why);
+    } else if (g_inGame && !luagc_on()) {  // luagc_init ran first
+        g_inGame = 0;
+        log_event("memwarn: the in-game warning is shown from the Lua cleanup's database call hook, which is off "
+                  "(LuaGcStepMB=0, or see its luagc: line); log only");
     }
     if (!why) g_g = g;
     log_event("memwarn: warns under %lu MB of free address space (%s), again after it climbs back to %lu MB",

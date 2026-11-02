@@ -172,9 +172,10 @@ and forwards the real exports to the system DLL. The main crash was a render com
 (`core\CommandStream.cpp`) with no capacity checks: on a Huge map with about 1,700 units, busy
 frames needed up to ~5,700 of its 4,096 command slots, and the overflow landed in the Miles audio
 engine's sample table, so render data was used as sound handles. The fix gives that stream spare
-room and bounds every writer. The other fixes hook imports, write game data, or change code that
-Steam's copy protection doesn't checksum, each after checking the bytes it relies on; none touches
-the game's main loop. Details: [How it works](docs/HOW-IT-WORKS.md).
+room and bounds every writer. The other fixes hook imports, write game data or change code, each
+after checking the bytes it relies on. None touches the game's main loop, and the newer code
+changes stay out of the code Steam's copy protection checksums. Details:
+[How it works](docs/HOW-IT-WORKS.md#loading-and-safety-checks).
 
 ### Build from source
 

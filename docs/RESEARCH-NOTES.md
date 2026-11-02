@@ -2433,8 +2433,9 @@ new ones. In DX11 66.0% of `.rdata` is covered, none of `.data` and none of the 
 the patch's import-slot hooks and data writes stay outside the checks. `cegall.py` now uses the
 full search (about 7 s for one exe; same usage and output). Re-checked with it: terrain.c's three
 changed places are still outside every range; cmdstream's twelve code changes are inside 8-10
-loops each (they were already inside exe+0x2be0c0's, the known exception); every other module
-changes import slots or data. One 13511 site shows what the old tool missed: item 10's binding
+loops each (they were already inside exe+0x2be0c0's, the known exception); texhandles' rewritten
+references and pool offsets are code changes too, and were already inside exe+0x2be0c0's (see
+above); every other module changes import slots or data. One 13511 site shows what the old tool missed: item 10's binding
 code (exe+0x246eb0) was "outside every range" and is inside 10 loops.
 
 cmdstream has run since 1.0.0 with code changes inside checked ranges and no visible effect. So
@@ -2735,7 +2736,11 @@ cegall.py sees): exe+0x109c5d (the step launch call) and exe+0x17eeb0 (the seedi
   copying), calls the launcher, then notes how full each pool got. Size: need + 25% + 4,096
   particles, in whole MB, at least 1 MB; grows when a step needs more than it holds, shrinks to
   what the last 30 s needed when it holds more than twice that. The game's own pools are replaced
-  at their first step.
+  at their first step. When a pool can't grow (malloc fails), the stub doesn't call the launcher:
+  the merge after it reads only its own region (stack locals set before the launch) and the
+  counts, which are zero, so it clears the range's cells and inserts nothing. The fog there loses
+  its particles, but no job writes past a pool (added after the release review, 2026-11-02; the
+  first version logged the shortfall and let the jobs run).
 - **seed_stub** (`mov eax,[ecx+440h]` -> `call; nop`): before a particle would pass pool 0's end,
   grows it (to 196,608, then by half), copying what is in it; the first call per load also swaps
   the other pools (still the game's) for small blocks, copying the stale entries the post-seed
@@ -2759,8 +2764,8 @@ cegall.py sees): exe+0x109c5d (the step launch call) and exe+0x17eeb0 (the seedi
 - **fluidpooltest:** the check on all three exes; the patched code decoded; on a stand-in object
   whose pools end at no-access pages, the game's own seeding function run from the mapped exe
   writes 200,000 particles intact (pool 0 grows past 196,608 once), the step stub with a launcher
-  that puts a whole range into one pool, shrinking only after 30 s, a range past the grid, no room,
-  registers. In CI (skipped without the game).
+  that puts a whole range into one pool, shrinking only after 30 s, a range past the grid, no room
+  (the launcher not called), registers. In CI (skipped without the game).
 
 ### In game (same save as 022048-050341, 5,505 non-deep-water tiles, 4 threads)
 

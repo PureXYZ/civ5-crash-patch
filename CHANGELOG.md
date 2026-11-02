@@ -32,9 +32,10 @@
   each fog step barely uses: on a late Huge save the busiest held 8,731 of its 196,608 particles.
   Each buffer is now as big as one step could ever need (four per block of particles in the part
   of the map that step moves, so no split of the work over the threads can run past it), grows at
-  once when the view takes in more and shrinks after 30 s without. Loading a map puts all of its
-  particles (about 10 a plot) into the first buffer, which now grows as needed, so a map with more
-  than 196,608 no longer writes past it. In a 32-minute test on a late Huge save: 8 MB instead of
+  once when the view takes in more and shrinks after 30 s without; if there's no memory left to
+  grow one, that fog step is skipped (the fog in view loses its particles) instead of writing past
+  it. Loading a map puts all of its particles (about 10 a plot) into the first buffer, which now
+  grows as needed, so a map with more than 196,608 no longer writes past it. In a 32-minute test on a late Huge save: 8 MB instead of
   96 MB with 4 threads, 58 MB more free at 10 minutes, the fog unchanged. Two places in the game's
   code change, both outside Steam's checked code (checked against all 284 of its loops); in the
   DirectX 9 and tablet exes they are checked, so it stays off there. `fluidpooltest` runs the

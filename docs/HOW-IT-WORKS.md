@@ -311,7 +311,9 @@ outside every checked range change:
   job is running, so a pool can be swapped for a new block without copying). A pool is the game's
   own block until the first step, then one of ours: the need + 25% + 4,096 particles, in whole MB,
   at least 1 MB. It grows at once when a step needs more, and shrinks to what the last 30 s needed
-  when it holds more than twice that.
+  when it holds more than twice that. If there's no memory for a bigger block, the stub skips that
+  step's jobs: the merge then finds the pools empty, so the fog in that range loses its particles,
+  but nothing is written past a pool.
 - **The seeding's first instruction** (`exe+0x17eeb0`, `mov eax,[ecx+440h]`) calls a stub that
   grows pool 0 (copying what's in it) before a particle would go past its end, so a map of any size
   fits.

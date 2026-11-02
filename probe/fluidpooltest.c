@@ -13,7 +13,8 @@
 //   seed-grown pool shrinks, a smaller range shrinks them only after 30 s with nothing larger,
 //   a larger one grows them at once, a range past the grid is clamped, and pools still the
 //   game's on another object are all replaced at its first step.
-// - With no room for a bigger pool, the old one stays and the shortfall is logged.
+// - With no room for a bigger pool, the old one stays and the step's jobs are skipped (the
+//   launcher, which would write past it, isn't called), logged once; with room again it grows.
 // - The seed stub keeps every register but eax; the step stub keeps ebx, esi, edi and ebp.
 // Skipped when the game isn't installed.
 #define WIN32_LEAN_AND_MEAN
@@ -114,7 +115,6 @@ static void __cdecl fake_launch(const LONG *range, BYTE *const *body, void *flag
     BYTE *obj = body[0];
     g_launches++;
     g_wrote = 0;
-    if (g_noRoom) return;
     LONG y1 = range[0] > H ? H : range[0], x1 = range[3] > W ? W : range[3];
     for (LONG y = range[1]; y < y1; y++)
         for (LONG x = range[4]; x < x1; x++)
@@ -267,13 +267,21 @@ int main(void)
         CHECK(cap(obj2, i) == size_for(need2), "the game's pools at the first step: pool %d holds %lu", i, (unsigned long)cap(obj2, i));
     CHECK(g_frees - frees == NPOOLS && counts(obj2)[1] == need2, "the game's pools: %d freed", g_frees - frees);
 
-    // No room for a bigger pool: the old one stays, the shortfall is logged.
+    // No room for a bigger pool: the old one stays and the jobs don't run (the launcher would write
+    // past it into the no-access page), logged once over two such steps.
     g_noRoom = 1;
     BYTE *before = slots(obj2)[0];
+    int launches = g_launches;
     g_log[0] = 0;
     substep(obj2, 0, 0, W, H, 0);
-    CHECK(slots(obj2)[0] == before && strstr(g_log, "no room") && strstr(g_log, "may need"), "no room: %s", g_log);
+    substep(obj2, 0, 0, W, H, 0);
+    const char *first = strstr(g_log, "is skipped");
+    CHECK(slots(obj2)[0] == before && g_launches == launches && counts(obj2)[0] == 0 && first && !strstr(first + 1, "is skipped"),
+          "no room: %d launches, %s", g_launches - launches, g_log);
     g_noRoom = 0;
+    substep(obj2, 0, 0, W, H, 0);
+    CHECK(g_launches == launches + 1 && counts(obj2)[0] == all && cap(obj2, 0) == want, "room again: pool 0 holds %lu",
+          (unsigned long)cap(obj2, 0));
 
     // Registers. The seed stub: everything but eax, which gets the count.
     counts(obj)[0] = 1234;

@@ -32,7 +32,10 @@
 //   so a pool can be swapped for a new block without copying), then calls the launcher, then
 //   notes how full each pool got. A pool is the game's own 24 MB block until the first step, then
 //   one of ours: need + 25% + 4,096, in whole MB, at least 1 MB; it grows at once when the need
-//   is larger, and shrinks to what the last 30 s needed when it holds more than twice that.
+//   is larger, and shrinks to what the last 30 s needed when it holds more than twice that. With
+//   no room for a bigger block, the stub skips the launcher: the merge then finds the pools empty
+//   and the fog in that range loses its particles, but no job writes past a pool (the game's
+//   24 MB would have held them).
 // - The seeding's first instruction (exe+0x17eeb0, `mov eax,[ecx+440h]`) calls seed_stub, which
 //   grows pool 0 (copying what's in it) before a particle would go past its end, so a map of any
 //   size fits. Its first call per load also swaps the other pools for small blocks (copying their
@@ -76,7 +79,7 @@ static BYTE *g_obj;
 static DWORD g_n;
 static int g_seeding;
 static DWORD g_winMost, g_winStart;
-static DWORD g_maxNeed, g_maxSeed, g_resizes, g_fails, g_overflows, g_steps;
+static DWORD g_maxNeed, g_maxSeed, g_resizes, g_fails, g_overflows, g_steps, g_skips;
 DWORD(WINAPI *g_fluidClock)(void) = GetTickCount;  // the test's clock
 
 static malloc_t exe_malloc(void) { return (malloc_t)*g_mallocSlot; }
@@ -149,12 +152,13 @@ static int resize(BYTE *obj, DWORD i, DWORD entries)
 }
 
 // Before the step jobs of a substep: every pool holds 4 particles for each block in the range
-// (rows [1]..[0], columns [4]..[3], as the job reads it).
-void __cdecl fluid_step_pre(const LONG *range, BYTE *const *body)
+// (rows [1]..[0], columns [4]..[3], as the job reads it). 0 when a pool couldn't grow to that:
+// then the jobs don't run.
+int __cdecl fluid_step_pre(const LONG *range, BYTE *const *body)
 {
     BYTE *obj = body[0];
     DWORD n = pools_of(obj);
-    if (!n) return;
+    if (!n) return 1;
     BYTE *grid = *(BYTE **)(obj + OFF_GRID);
     LONG w = *(LONG *)(grid + GRID_W), h = *(LONG *)(grid + GRID_H);
     const DWORD *blocks = *(const DWORD *const *)(grid + GRID_BLOCKS);
@@ -175,14 +179,12 @@ void __cdecl fluid_step_pre(const LONG *range, BYTE *const *body)
     DWORD now = g_fluidClock();
     if (need > g_winMost) g_winMost = need;
     int shrink = now - g_winStart >= SHRINK_MS;
-    DWORD want = size_for(need), small = size_for(g_winMost), gave = g_gave;
+    DWORD want = size_for(need), small = size_for(g_winMost), gave = g_gave, shortPool = MAX_POOLS, shortCap = 0;
     for (DWORD i = 0; i < n; i++) {
         if (!slots(obj)[i]) continue;
         DWORD cap = cap_of(obj, i);
         if (need > cap || !mine(obj, i) || g_pool[i].seedGrown) {
-            if (!resize(obj, i, want) && need > cap && !g_overflows)
-                log_event("fluidpool: pool %lu holds %lu particles, this step may need %lu", (unsigned long)i,
-                          (unsigned long)cap, (unsigned long)need);
+            if (!resize(obj, i, want) && need > cap && shortPool == MAX_POOLS) shortPool = i, shortCap = cap;
         } else if (shrink && cap > 2 * small) {
             resize(obj, i, small);
         }
@@ -192,7 +194,12 @@ void __cdecl fluid_step_pre(const LONG *range, BYTE *const *body)
         g_winMost = need;
     }
     log_gave(obj, n, gave, "a fog step");
+    if (shortPool < MAX_POOLS && !g_skips++)
+        log_event("fluidpool: pool %lu holds %lu particles and there's no room to grow it to this step's %lu; the step is "
+                  "skipped (the fog in view loses its particles) instead of writing past it, and so is any like it",
+                  (unsigned long)shortPool, (unsigned long)shortCap, (unsigned long)need);
     unlock();
+    return shortPool == MAX_POOLS;
 }
 
 // After them: how full each pool got (more than it holds would mean the bound is wrong).
@@ -236,7 +243,8 @@ void __cdecl fluid_seed_pre(BYTE *obj)
 // exe+0x17eeb0 (`mov eax,[ecx+440h]`) -> `call seed_stub; nop`, ecx = the particle object. Keeps
 // every register but eax, which gets what the instruction loads.
 void seed_stub(void);
-// exe+0x109c5d (`call <step launcher>`, cdecl: range, body, flag) -> step_stub.
+// exe+0x109c5d (`call <step launcher>`, cdecl: range, body, flag) -> step_stub. The launcher's
+// result isn't used (the caller loads eax next).
 void step_stub(void);
 __asm__(".text\n"
         ".globl _seed_stub\n_seed_stub:\n"
@@ -254,11 +262,14 @@ __asm__(".text\n"
         "\tpushl 8(%esp)\n"
         "\tcall _fluid_step_pre\n"
         "\taddl $8, %esp\n"
+        "\ttestl %eax, %eax\n"
+        "\tjz 1f\n"
         "\tpushl 0xc(%esp)\n"
         "\tpushl 0xc(%esp)\n"
         "\tpushl 0xc(%esp)\n"
         "\tcall *_g_fluidStepFn\n"
         "\taddl $0xc, %esp\n"
+        "1:\n"
         "\tpushl 8(%esp)\n"
         "\tcall _fluid_step_post\n"
         "\taddl $4, %esp\n"
@@ -478,9 +489,11 @@ void fluidpool_report(void)
                           (unsigned long)g_pool[i].most);
     }
     unlock();
+    char skipped[48] = "";
+    if (g_skips) snprintf(skipped, sizeof skipped, ", %lu skipped for lack of room", (unsigned long)g_skips);
     log_event("fluidpool: %lu pools, %s %.1f MB (the game's: %lu MB): %s%s; largest step need %lu particles, seed %lu, "
-              "%lu steps, %lu resizes%s%s", (unsigned long)g_n, freed ? "freed by the game now; they held" : "holding", held,
+              "%lu steps%s, %lu resizes%s%s", (unsigned long)g_n, freed ? "freed by the game now; they held" : "holding", held,
               (unsigned long)g_n * 24, line, g_n > n ? ", ..." : "", (unsigned long)g_maxNeed, (unsigned long)g_maxSeed,
-              (unsigned long)g_steps, (unsigned long)g_resizes, g_fails ? ", allocation failures" : "",
+              (unsigned long)g_steps, skipped, (unsigned long)g_resizes, g_fails ? ", allocation failures" : "",
               g_overflows ? ", AN OVERFLOW" : "");
 }

@@ -58,9 +58,9 @@ Most tests are named `CivilizationV_*.exe` so the probe activates inside them. T
 | `luaheaptest` | The Lua heap wrappers, 4 threads. |
 | `texhandlestest` | The game's texture handle pool code, grown to 16,384 and to 32,768 handles, in the installed DX11 exe mapped as an image: every handle, release and reuse across the old limit, the record getters. Skipped without the game. |
 | `terraintest` | `TerrainBaseSlots`' three changed instructions in the installed DX11 exe mapped as an image, its two stubs, and the top-up through the hooked `qsort` on a stand-in terrain object and tile manager. Skipped without the game. |
-| `fluidpooltest` | `FluidPools`' two changed places in the installed DX11 exe mapped as an image (and that the other two exes aren't mapped); on a stand-in particle object whose pools end at no-access pages, the game's own seeding function writing 200,000 particles, and the step stub with a launcher that sends a whole range to one pool: sizing, shrinking after 30 s, no room, registers kept. Skipped without the game. |
+| `fluidpooltest` | `FluidPools`' two changed places in the installed DX11 exe mapped as an image (and that the other two exes aren't mapped); on a stand-in particle object whose pools end at no-access pages, the game's own seeding function writing 200,000 particles, and the step stub with a launcher that sends a whole range to one pool: sizing, shrinking after 30 s, no room (the step skipped, not run past a pool), registers kept. Skipped without the game. |
 
-The last five link their module directly and need no ini.
+The last six link their module directly and need no ini.
 
 **Self-checking, not in CI:**
 

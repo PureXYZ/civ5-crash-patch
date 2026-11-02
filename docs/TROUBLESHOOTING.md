@@ -95,7 +95,7 @@ about 2,000 (in `GraphicsSettingsDX11.ini` it's `TerrainDetailLevel = 2` instead
 In DirectX 11 the fix keeps every tile of the map textured (`TerrainBaseSlots`, on by default):
 a few minutes after a save loads, the game's background pass has built them all, and scrolling
 shows no grey. Grey right after loading is that pass still running. The game itself keeps terrain
-textures for at most 3,072 tiles, under half of a Huge map, and rebuilds the rest from grey
+textures for at most 3,072 tiles, under a third of a Huge map, and rebuilds the rest from grey
 whenever you scroll to them.
 
 That costs address space, the game's scarcest resource: about 40-110 MB on a Huge map. A map
