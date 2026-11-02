@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased
+
+### What's new
+
+To update, close the game and copy the new `msimg32.dll` over the old one. Then check the newest
+log's first line for the new version. These changes are all about the settings file; the fixes
+are the same as in 1.4.0.
+
+- **The settings file goes next to `msimg32.dll`.** It used to work only in the `civprobe` folder,
+  which doesn't exist until the game has started once, and a file anywhere else was ignored
+  without a sign. A file in the `civprobe` folder still works, but one next to `msimg32.dll` takes
+  its place: if you have both, move your settings into that one.
+- **The log says which settings count.** The events log's `settings:` lines name the settings file
+  and every setting the game used, and say why a line doesn't count: a setting written twice (the
+  first one counts), a second `[probe]` line, a word like `yes` for a value (read as 0), or a
+  number with commas (`16,384` reads as 16).
+- **Only `Enabled=0` turns the fix off.** A word or an empty value used to turn it off too.
+- **The example settings file changes nothing until you edit it.** Every setting in
+  `optional\civprobe.ini` now has a `;` in front; delete it to change that setting. A copy of the
+  old example sets every setting to its 1.4.0 default and keeps those values in later versions, so
+  delete the lines you didn't change.
+- **No folder inside a folder in the zip.** **Extract All** gives one folder with `msimg32.dll` in
+  it.
+
+### Details
+
+- **Where the settings file is read:** `civprobe.ini` next to the DLL if it exists, else
+  `civprobe\civprobe.ini`. The file found is used whole; the two are not merged.
+- **Settings report (`settings.c`):** built from `GetPrivateProfileSectionNamesW` and
+  `GetPrivateProfileSectionW`, so it sees what Windows reads: comment lines dropped, spaces around
+  `=` removed, only the first `[probe]` section (any case), and only the first line of a key. The
+  words it names are on, off, yes, no, true, false, enabled and disabled; a grouped number is 1-3
+  digits followed by groups of three after `,`, a space or `.`. A UTF-8 byte order mark in front of
+  a `[probe]` first line hides that section, which the report shows as no `[probe]` line.
+- **`Enabled`:** off only when the value starts with `0` and reads as 0.
+- **Docs:** snippets no longer contain `[probe]` (pasted into a file that has one, its settings
+  were ignored), the "create a text file" option is gone (it could end up as `civprobe.ini.txt`),
+  and the install check says the log's first line "contains" the version, since every line starts
+  with a timestamp.
+- **Release zip:** `Compress-Archive "$d/*"` packs the folder's files instead of the folder.
+- New self-checking test `settingstest` (9 setups, 30 checks), run in CI.
+
 ## 1.4.0
 
 ### What's new
