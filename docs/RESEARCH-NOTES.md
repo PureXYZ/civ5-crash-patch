@@ -59,6 +59,8 @@ In the order they happened:
 12. **The VP exe bug list and Steam's CEG.**
    [Issue 13511's items](#the-exe-bugs-in-vp-issue-13511-2026-11-02) ·
    [CEG checks more code than cegall.py saw](#steams-ceg-checks-more-code-than-cegallpy-saw)
+13. **Leader-head textures.**
+   [GPU Texture Decode keeps them out of memory](#leader-head-texture-data-gpu-texture-decode-already-keeps-it-out-of-memory-2026-11-02)
 
 ## Why the game crashes
 
@@ -2276,8 +2278,8 @@ render anyway.
   (see above): the driver's own pooling. A second try, an upload ring of our own, made it worse
   ([below](#gpu-driver-regions-second-try-an-upload-ring-of-our-own-2026-11-02)).
 - **Leader-head texture data**: ~140 MB of CPU copies (CvLeaderHeadTextureManager), loaded at save
-  load. `LeaderTextureReduction` in GraphicsSettingsDX11.ini is the user-side lever (smaller
-  leader textures).
+  load. Closed: they are only there with GPU Texture Decode off, and that session had it off
+  ([below](#leader-head-texture-data-gpu-texture-decode-already-keeps-it-out-of-memory-2026-11-02)).
 - **Fluid particle pools**: 4 x 24 MB committed (FluidParticles.cpp l.623), 12.4 / 0.5 / 0.7 /
   0.5 MB touched. A smaller pool needs to know what the code does when one fills;
   `MaxSimultaneousThreads` sets how many there are.
@@ -2358,8 +2360,9 @@ The user asked for another attempt at the space only reserved in the driver's 32
   copies, already at about one frame, plus its own command buffers (ringtest.c: up to ~100 MB
   of write-combined memory for GPU commands alone); what is held beyond that is how the kernel
   packs them, set at the load's peak. Nothing outside the game's render code changes either. The
-  regions are closed for good; the larger leads are the leader-head texture copies (~140 MB) and
-  the fluid particle pools (~80 MB committed, unused).
+  regions are closed for good; the larger leads are the leader-head texture copies (~140 MB; closed
+  later, [GPU Texture Decode keeps them out of memory](#leader-head-texture-data-gpu-texture-decode-already-keeps-it-out-of-memory-2026-11-02))
+  and the fluid particle pools (~80 MB committed, unused).
 
 ## The chime that repeats during AI turns (2026-11-02)
 
@@ -2497,3 +2500,83 @@ A fix (not built) in the style of terrain.c:
   traced one. That's per owner, boundary sides x traced edges, small next to a frame.
 - Nobody has reproduced the symptom in the unmodified game yet. The check in game: a ring of
   territory around an unowned pocket should get its inner border line.
+
+## Leader-head texture data: GPU Texture Decode already keeps it out of memory (2026-11-02)
+
+The largest lead left after the memory audit was ~140 MB of leader-head texture data held in RAM
+(AllocTracking session 20261101_191043: 161 blocks of 256 KB and up, 139.6 MB, all from
+exe+0xa7849 in `CvLeaderHeadTextureManager.cpp`). Could the patch give it back?
+
+- **What it is.** Leader textures ship as `.fic` files (1,382 of them, 450.8 MB, in the
+  `*Textures.fpk` packs): a range-coded image format (a carry-less range coder; the header,
+  parsed at exe+0x4d6720, holds version 8, width - 1 and height - 1 out of 2048, then the mip
+  levels). The loader (exe+0xa7290, called only from exe+0x319510) keeps a cache from file name to
+  entry. On a miss it reads the whole `.fic` into a buffer (the reserve at exe+0xa7844, so
+  exe+0xa7849 is the stack frame above), then takes one of two paths:
+  - **GPU decode** (exe+0xa78e3): when the cache's flag +0x3b9 is set and the texture is at least
+    as wide as it is tall and at least 256 tall, it byte-swaps the data and makes a D3D11
+    structured buffer with it as the initial data (exe+0x4c64c0 -> exe+0x4bc550,
+    `ID3D11Device::CreateBuffer`, DEFAULT usage, shader-resource and unordered-access views), then
+    frees the CPU copy (exe+0xa7a0a). A compute shader (`LeaderDecompressShader`) decodes it into
+    the RGBA8 texture. The engine keeps no copy of the buffer's contents.
+  - **CPU decode:** otherwise the buffer stays in the cache entry and the scene's texture manager
+    gets a record pointing to it (exe+0x83090; records of 0xa0 bytes at manager+0x858). The
+    decoder (exe+0x3bc50) runs as jobs at scene load (exe+0x3a3570, which logs "Finished initial
+    LeaderHead Texture Decompression") and, with `LeaderTextureBackgroundLoad` above 0, again on
+    entering the scene for the rest of the mip levels (exe+0x18d67e).
+- **The flag is `UseGPUDecompress`** (GPU Texture Decode in Video Options; exe+0x990f12): exe+0x30d800
+  sets +0x3b9 when the setting is on and two capability flags are set (+0x6a0c, and exe+0x2b65e3d,
+  which the buffer function checks too). Nothing else in the exe reads the setting except the
+  options screen and the auto-detected quality presets (the lower ones turn it off).
+- **Why the game keeps the CPU copy.** All the game's leaders are loaded with the save (the VA maps
+  below hold all 17 leaders' data at 10 minutes), and only `MaxResidentScenes` (exe+0x990f08) scenes
+  stay: making a scene resident unloads the least recently used one past that number
+  (exe+0x357729 / exe+0x143b64 call exe+0x67ae0, which releases the scene's textures). When that
+  leader's scene is needed again, the loader finds the file in its cache (exe+0xa7330) and builds
+  the textures again from the cached data. So the copy is what a scene is rebuilt from, and freeing
+  it after the first decode would be a use-after-free on the next diplomacy screen.
+- **How much stays in RAM with GPU decode on** (scratchpad fichdr.py, which decodes the headers of
+  every `.fic` in the packs): 449.4 of the 450.8 MB meet the GPU path's shape test. The 1.4 MB that
+  doesn't is small textures (128x128, 256x128, ...) and a few taller than wide. For the 17 leaders of
+  the user's Sapiens + Gaia game (found below): 436 files, 155.3 MB; with GPU decode, 72 files and
+  0.69 MB stay in RAM.
+- **Session 191043 had GPU decode off.** `UseGPUDecompress = 0` was set on 2026-10-28 against the
+  black squares ([above](#black-squares-a-known-dx11--euivp-issue-not-address-space-2026-10-28)), and
+  the user turned it back on at 21:48 on 2026-11-01, after the texture table fix. So the 140 MB
+  was measured with every leader texture on the CPU path.
+- **Seen in the VA maps** (scratchpad ficdiff.py: the heap's large blocks, which get their own
+  VirtualAlloc above ~508 KB, matched by committed size to the `.fic` sizes, at 10 minutes, same
+  game, same leaders):
+
+  | Sessions | GPU decode | Large blocks only in the first | of them `.fic`-sized |
+  |---|---|---|---|
+  | 210103 -> 215143 | off -> on | 99, 125.7 MB | 117.3 MB |
+  | 203817 -> 225853 | off -> on | 97, 122.7 MB | 117.5 MB |
+  | 215143 -> 003143 | on -> on (control) | 4, 10.1 MB | 1.8 MB |
+
+  The names whose sizes match one file only give the leader set: Attila, Napoleon, Pachacuti,
+  Isabella, Montezuma, Shaka, Ramkhamhaeng, Pocatello, Bismarck, Hiawatha, Gajah Mada, Askia,
+  Harun al-Rashid, William, Alexander, Catherine, Oda Nobunaga. Their 92 files over ~508 KB come
+  to 115.3 MB, which is what went. The rest of the 155 MB is in smaller files, which live inside
+  the heap's segments, so the VA map doesn't show them one by one. The free-space totals of these sessions
+  can't be compared: terrain detail, the HD strategic view, the texture table and the GPU driver
+  regions changed between them too.
+- **What GPU decode costs instead:** video memory for the compressed data, a 42.7 MB scratch
+  buffer made when it is turned on (exe+0x30d843, 0xaaaaaa x 4 bytes), and one texture handle per
+  GPU-decoded texture, since the buffers come from the same handle pool (exe+0x4c5cb0 on
+  exe+0x3d3e2c0): about 360 for those 17 leaders. That is why it filled the game's 12,288-handle
+  table sooner; with `TextureHandles` the table has room for it.
+- **Not built: freeing or reloading the copies for players who keep GPU decode off.** It would take
+  a hook on the loader's cache hit to read the file again through the game's file system, another
+  before every decode (exe+0x3bc50 has five callers, one its own job chain), and buffers from the
+  game's allocator so the cache's teardown can free them. Those places are almost all inside CEG's
+  checked ranges (cegall.py: the loader exe+0xa7290 and its cache hit in exe+0x87720's, its only
+  call site exe+0x319510 in three checks', the decoder exe+0x3bc50 in three, and its callers
+  exe+0x3a3613 and exe+0x18d67e too; only the scene unload exe+0x67ae0 and the job chain's call
+  exe+0x39876 are outside the 26 checks it finds), so it would break the rule that code changes
+  stay outside every range, for a setting that has a better answer already.
+  `LeaderTextureReduction` isn't needed either: it halves the textures, and with GPU decode on
+  there is almost nothing left in RAM to shrink.
+- **Conclusion:** keep GPU Texture Decode on (the game's default). With the bigger texture table it no
+  longer causes black squares, and it keeps ~150 MB of leader textures (for a Huge game's
+  17 leaders) out of the address space. The player docs now say so.

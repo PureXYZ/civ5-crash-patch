@@ -335,8 +335,11 @@ The game code the fix relies on is the same in all three, with these exceptions:
   decode and the HD strategic view fill sooner (a big mod set loaded with 12,991 textures with
   both on). By default the table holds 32,768 and the terrain gets at most 22,528 of them, so
   everything else keeps at least 10,240, 4,096 more than the game leaves it at the highest terrain
-  detail. A game that needs more can turn those two settings off, or set `TextureHandles=32768`
-  (the table stays at its most) with a lower `TerrainBaseSlots`. Terrain detail one step down
+  detail. A game that needs more can turn the HD strategic view off, or set `TextureHandles=32768`
+  (the table stays at its most) with a lower `TerrainBaseSlots`. Turning GPU texture decode off
+  frees a few hundred more, but the game then keeps every leader's compressed textures in its own
+  memory instead of in video memory, ~150 MB for a Huge game's leaders
+  ([details](RESEARCH-NOTES.md#leader-head-texture-data-gpu-texture-decode-already-keeps-it-out-of-memory-2026-11-02)). Terrain detail one step down
   frees nothing on a big map while `TerrainBaseSlots` is on, since every tile still gets its two
   textures. The DirectX 9 and tablet exes keep the game's 12,288.
 

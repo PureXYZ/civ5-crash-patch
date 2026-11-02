@@ -290,7 +290,9 @@ data is wrapped).
 
 **`TextureHandles`.** Every texture the game makes (icons, UI atlases, fonts, terrain tiles,
 leader scenes) takes one of 12,288 handles, and the game almost never gives one back: it keeps
-every icon atlas it has loaded. A large mod set fills that table, sooner with GPU Texture Decode,
+every icon atlas it has loaded. A large mod set fills that table, sooner with GPU Texture Decode
+(one more per leader texture; turning it off costs ~150 MB of address space instead, see
+[Troubleshooting](TROUBLESHOOTING.md#keep-gpu-texture-decode-on)),
 High Detail Strategic View and the highest terrain detail, and every texture made after that is
 blank: black or magenta squares on icons and city banners, and the "Error loading font texture"
 message. With 16384 there is room for 4,096 more without lowering any setting. In a test with a

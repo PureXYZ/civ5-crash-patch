@@ -15,6 +15,7 @@ problems with big games, and what to do if something goes wrong.
   - [The game freezes for a long time in AI turns](#the-game-freezes-for-a-long-time-in-ai-turns)
   - [My antivirus removed the DLL](#my-antivirus-removed-the-dll)
 - [Settings to avoid](#settings-to-avoid)
+  - [Keep GPU Texture Decode on](#keep-gpu-texture-decode-on)
 - [Turning the fix off to compare](#turning-the-fix-off-to-compare)
 
 ---
@@ -73,14 +74,17 @@ Huge map with all three on.
 If you still see them, the events log in the `civprobe` folder says `the texture table is full`.
 Then do one of these, and restart the game:
 
-- In the game, open **Options → Video Options** and turn off **GPU Texture Decode** and
-  **High Detail Strategic View**.
+- In the game, open **Options → Video Options** and turn off **High Detail Strategic View**.
 - Give the terrain a smaller share of the table. In `civprobe\civprobe.ini`, set
   `TextureHandles=32768` (the most, which keeps the table at full size) and a lower
   `TerrainBaseSlots`, for example 14000 ([Settings](SETTINGS.md#more-textures-on-by-default)).
   Each slot less is one more texture for icons and the rest, and part of a big map turns grey
   again when you scroll far. A lower `TerrainBaseSlots` alone doesn't help, because the table
   shrinks with it.
+- Only if those aren't enough, turn off **GPU Texture Decode**. It frees one texture per leader
+  texture (a few hundred in a big game), but it costs memory: the game then keeps every leader's
+  textures in memory instead of on the graphics card, about 150 MB in a game with 17 leaders
+  ([why](#keep-gpu-texture-decode-on)).
 
 Lowering **Terrain Detail Level** doesn't free textures on a big map while `TerrainBaseSlots` is
 on: the fix still gives every tile its two terrain textures. With `TerrainBaseSlots=0` it frees
@@ -189,6 +193,17 @@ that its SHA-256 matches the one listed there, and allow it in your antivirus. O
 ## Settings to avoid
 
 - **Don't set `FluidFOW = 1`** in `config.ini` to save memory. It breaks terrain rendering.
+
+### Keep GPU Texture Decode on
+
+DirectX 11. **GPU Texture Decode** (Options → Video Options; `UseGPUDecompress = 1` in
+`GraphicsSettingsDX11.ini`) is on by default, and turning it off doesn't save memory, it costs
+some. It only affects the leader screens. The game loads the textures of every leader in the game
+when a save loads and keeps them, compressed, so it can rebuild a leader's scene whenever you open
+their screen again. With GPU Texture Decode on, that copy goes to the graphics card; with it off, it stays
+in the game's own memory: about 150 MB in a Huge game with 17 leaders. Older advice turned it off
+against black squares on icons; in DirectX 11 the fix's bigger texture table makes that
+unnecessary ([Black squares](#black-squares-on-icons-or-city-banners)).
 
 ## Turning the fix off to compare
 
