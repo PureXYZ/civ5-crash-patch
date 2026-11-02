@@ -46,7 +46,8 @@ jobs:
           # streamtest and audiotest drive the stubs themselves (CommandStreamTestRets set, so
           # nothing in the test exe is patched); sparetest writes its own ini for a child run.
           # mitest checks the mimalloc redirect (on by default) through msvcr90, like the game.
-          # msgqueuetest, uiqueuetest and luaheaptest link their module directly (no ini).
+          # msgqueuetest, uiqueuetest, luaheaptest and texhandlestest link their module directly (no ini);
+          # texhandlestest skips itself without the game's exe.
           # (d3dstatstest needs a hardware D3D11 device; guardtest and luagctest need the game's Lua DLL.)
           mkdir -p civprobe
           printf '[probe]\r\nCommandStreamTestRets=0x1,0x1,0x1\r\n' > civprobe/civprobe.ini
@@ -62,6 +63,7 @@ jobs:
           ./msgqueuetest.exe
           ./msgqueuetest.exe 1 2 1  # workers paused between header and payload
           ./luaheaptest.exe
+          ./texhandlestest.exe
 
       - name: Package
         shell: pwsh

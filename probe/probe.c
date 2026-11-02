@@ -303,12 +303,13 @@ __declspec(dllexport) int CivProbe_CheckExe(const WCHAR *exePath, char *report, 
         {"cmdstream", cmdstream_check}, {"msgqueue", msgqueue_check}, {"uiqueue", uiqueue_check},
         {"uiqueue tables", uiqueue_tables_check}, {"mapgrid", mapgrid_check}, {"luaheap", luaheap_check},
         {"coretick", coretick_check}, {"smallblock", smallblock_check}, {"luaguard", luaguard_check},
-        {"d3dstats", d3dstats_check},
+        {"d3dstats", d3dstats_check}, {"texhandles", texhandles_check},
     };
     int o = snprintf(report, cap, "%s:", g->name), ok = 1;
     for (size_t i = 0; i < sizeof parts / sizeof parts[0] && o < cap; i++) {
         const char *why = parts[i].check(exe, g);
-        if (why && !(parts[i].check == d3dstats_check && !g->d3dContext)) ok = 0;
+        if (why && !(parts[i].check == d3dstats_check && !g->d3dContext) && !(parts[i].check == texhandles_check && !g->texPool))
+            ok = 0;
         o += snprintf(report + o, cap - o, " %s=%s", parts[i].name, why ? why : "ok");
     }
     if (g->gameFault && o < cap) {  // the game's own NULL write: mov [reg], ... (a write through a register)
@@ -894,6 +895,7 @@ static DWORD WINAPI sampler(LPVOID unused)
         gpuwatch_tick();
         msgqueue_tick();
         d3dstats_tick();
+        texhandles_tick();
         if (!snapStart && t >= 60) { snapStart = 1; log_headroom(&s, "1 min"); snapshot("t60s"); heap_histogram("t60s"); }
         if (!snapLow64 && s.free_[0] < (64ull << 20)) {
             snapLow64 = 1;
@@ -931,6 +933,7 @@ static DWORD WINAPI sampler(LPVOID unused)
             gpuwatch_report();
             msgqueue_report();
             d3dstats_report();
+            texhandles_report();
             watch_report();
             cmdstream_report();
         }
@@ -1088,6 +1091,7 @@ static void start_probe(void)
     gpuwatch_init(ini);
     msgqueue_init(ini);
     d3dstats_init(ini);
+    texhandles_init(ini);
 
     g_overflowReq = CreateEventW(NULL, FALSE, FALSE, NULL);
     g_overflowDone = CreateEventW(NULL, FALSE, FALSE, NULL);
@@ -1128,6 +1132,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gpuwatch_report();
         msgqueue_report();
         d3dstats_report();
+        texhandles_report();
         watch_report();
         cmdstream_report();
         crtfail_log_last_cxx();

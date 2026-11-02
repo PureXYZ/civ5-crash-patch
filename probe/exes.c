@@ -15,6 +15,30 @@
 #include <string.h>
 #include "probe.h"
 
+// texhandles.c: the DX11 texture handle pool's functions address it through `this`; these are the
+// 4-byte operands that hold a pool offset past the refcounts, the handle cap or a memset size.
+static const TexSite kTexSitesDx11[] = {
+    // Release exe+0x1e8df0
+    {0x1e8e29, 0xc044, TH_OFF}, {0x1e8e3b, 0xc048, TH_OFF},
+    // Alloc exe+0x4c5cb0
+    {0x4c5cce, 0x328b8, TH_OFF}, {0x4c5cd7, 0x328b4, TH_OFF}, {0x4c5cdd, 0x32898, TH_OFF}, {0x4c5d3b, 0x3000, TH_COUNT},
+    // constructor exe+0x4c7280
+    {0x4c728b, 0xc048, TH_OFF}, {0x4c72ae, 0x3208c, TH_OFF}, {0x4c72b4, 0x32090, TH_OFF}, {0x4c72ba, 0x32094, TH_OFF},
+    {0x4c72c0, 0x32088, TH_OFF}, {0x4c72cb, 0x32898, TH_OFF}, {0x4c72d1, 0x3289c, TH_OFF}, {0x4c72d7, 0x328a4, TH_OFF},
+    {0x4c72dd, 0x328a8, TH_OFF}, {0x4c72e3, 0x328a0, TH_OFF}, {0x4c72e9, 0x328b0, TH_OFF}, {0x4c72ef, 0x328b4, TH_OFF},
+    {0x4c72f4, 0x24000, TH_ITEMBYTES}, {0x4c72fa, 0xe088, TH_OFF}, {0x4c7300, 0x328ac, TH_OFF}, {0x4c7306, 0x328b8, TH_OFF},
+    {0x4c7315, 0xc044, TH_OFF}, {0x4c731f, 0xc000, TH_REFBYTES},
+    // destructor exe+0x4c5430
+    {0x4c5438, 0x32898, TH_OFF}, {0x4c5442, 0x328a4, TH_OFF}, {0x4c5448, 0x3289c, TH_OFF}, {0x4c544e, 0x328a0, TH_OFF},
+    {0x4c545b, 0x32088, TH_OFF}, {0x4c5461, 0x32094, TH_OFF}, {0x4c5477, 0xe088, TH_OFF},
+    // frame flush exe+0x4c33d0
+    {0x4c33ee, 0xc044, TH_OFF}, {0x4c33f4, 0x3208c, TH_OFF}, {0x4c3405, 0xc048, TH_OFF}, {0x4c340e, 0xc04c, TH_OFF},
+    {0x4c3414, 0x32088, TH_OFF}, {0x4c345a, 0xc04c, TH_OFF}, {0x4c3464, 0xc044, TH_OFF}, {0x4c3471, 0xc044, TH_OFF},
+    // recycle exe+0x4c48d0
+    {0x4c48f0, 0x3208c, TH_OFF}, {0x4c48f9, 0x32898, TH_OFF}, {0x4c4902, 0x32088, TH_OFF}, {0x4c4914, 0x3208c, TH_OFF},
+    {0x4c491d, 0x3208c, TH_OFF}, {0x4c4930, 0x3208c, TH_OFF},
+};
+
 static const GameExe kExes[] = {
     {
         .name = "DX11", .timestamp = 0x546cd0a8, .imageSize = 0x6519000,
@@ -34,6 +58,8 @@ static const GameExe kExes[] = {
         .coreSite = 0x3258b3, .coreAcc = 0x8cf91c,
         .luaLock = 0x5042a0, .luaUnlock = 0x5042b0,
         .d3dContext = 0x2c10584, .d3dFlushUse = 0x4c12fb, .d3dFlushVB = 0x4c1319, .d3dFlushIB = 0x4c13d8,
+        .texPool = 0x3d3e2c0, .texRecords = 0x3d70b80, .texPoolFixups = 50, .texRecFixups = 52,
+        .texSiteCount = sizeof kTexSitesDx11 / sizeof kTexSitesDx11[0], .texSites = kTexSitesDx11,
     },
     {
         // portmap.py; the record allocator (rounds up to 256 bytes), the Lua lock wrappers and the

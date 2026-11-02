@@ -13,6 +13,8 @@ to that. A few bugs in the game waste memory or corrupt it when the game is busy
   - makes the game's memory last longer and cleans up memory it leaves behind
   - stops the crash when you quit
   - shortens AI turns and cuts hitches while you pan the map during them
+  - makes room for more textures, so icons don't turn black in big modded games
+    (DirectX 11)
 
 It doesn't change gameplay, rules, saves or mods. It works in every mode Steam offers when
 you start the game: DirectX 11, DirectX 9 and tablet.
@@ -32,9 +34,9 @@ To check that it works: after you start the game, the game folder has a new fold
 "civprobe". The first line of the newest events_....log file in it starts with
 "Civ V Crash Patch 1.2.1".
 
-Using EUI or Vox Populi and seeing black squares on icons or city banners in DirectX 11?
-In the game, open Options > Video Options, turn off "GPU Texture Decode" and "High Detail
-Strategic View", and restart. That's a separate graphics issue; this fix doesn't change it.
+Still seeing black squares on icons or city banners in DirectX 11? The game ran out of room
+for textures, even with the extra room the fix gives it. In the game, open Options > Video
+Options, turn off "GPU Texture Decode" and "High Detail Strategic View", and restart.
 
 
 UPDATE

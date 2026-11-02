@@ -7,6 +7,10 @@ HANDLE open_out(const WCHAR *name);
 void write_all(HANDLE h, const char *buf, int len);
 extern WCHAR g_session[32];
 
+// texhandles.c: a 4-byte operand in the texture handle pool's own functions, and what it holds.
+enum { TH_OFF, TH_COUNT, TH_REFBYTES, TH_ITEMBYTES };  // pool offset past the refcounts, 0x3000, 4 x / 12 x 0x3000
+typedef struct { DWORD rva, value, kind; } TexSite;
+
 // exes.c: the RVAs the parts that change exact places use, per build of the game exe. 0 = that
 // build has no such place (the part stays off there).
 typedef struct {
@@ -33,6 +37,11 @@ typedef struct {
     DWORD luaLock, luaUnlock;
     // d3dstats.c
     DWORD d3dContext, d3dFlushUse, d3dFlushVB, d3dFlushIB;
+    // texhandles.c: the texture handle pool, the records right after it, how many .text
+    // relocations point into the pool past its refcounts and into the records, and the pool
+    // functions' own offsets and sizes
+    DWORD texPool, texRecords, texPoolFixups, texRecFixups, texSiteCount;
+    const TexSite *texSites;
 } GameExe;
 const GameExe *game_exe(const BYTE *exe);  // the table for this image (timestamp and size), or NULL
 const GameExe *game_exe_dx11(void);        // for the tests' stand-in images
@@ -52,6 +61,7 @@ const char *coretick_check(BYTE *exe, const GameExe *g);
 const char *smallblock_check(BYTE *exe, const GameExe *g);
 const char *luaguard_check(BYTE *exe, const GameExe *g);
 const char *d3dstats_check(BYTE *exe, const GameExe *g);
+const char *texhandles_check(BYTE *exe, const GameExe *g);
 
 // alloctrack.c
 void alloc_init(const WCHAR *ini);
@@ -133,6 +143,14 @@ void luaheap_report(void);
 void d3dstats_init(const WCHAR *ini);
 void d3dstats_tick(void);  // sampler thread
 void d3dstats_report(void);
+
+// texhandles.c
+void texhandles_init(const WCHAR *ini);  // DllMain: before the exe's static constructors
+void texhandles_tick(void);  // sampler thread
+void texhandles_report(void);
+// Moves the records to `records` (n x 0x398 bytes, zeroed) and grows the pool to n handles in the
+// image at exe; texhandles_check must have passed. NULL when done, else why nothing changed.
+const char *texhandles_apply(BYTE *exe, const GameExe *g, DWORD n, BYTE *records);
 
 // msgqueue.c
 void msgqueue_init(const WCHAR *ini);  // DllMain (takes the main thread's id)

@@ -248,6 +248,21 @@ in the handler table (a data write).
 
 Measured results and every setting: [Settings](SETTINGS.md#faster-ai-turns-on-by-default).
 
+## Texture handle table
+
+`probe/texhandles.c`, on by default (`TextureHandles=16384`). Every texture takes a handle from one
+static pool in the exe: a refcount and a 12-byte item (resource, shader view) per handle, plus a
+0x398-byte record per handle in a static array right after the pool, for 12,288 handles. When they
+run out, a new texture gets handle 0, the null texture. With `TextureHandles=N` the records move to
+a block of their own and the pool grows in place over their old space: the refcounts get N entries
+and everything after them moves up. The 102 absolute references to the moved parts are found
+through the exe's base relocations (all in the texture code), and the pool's own functions get
+their 42 offsets, the cap and two memset sizes rewritten. Everything is checked before anything
+changes, in DllMain, before the exe's static constructors build the pool. The old records' space
+past the grown pool is made inaccessible, so a missed reference would fault at once.
+`texhandlestest` runs the game's own pool code, grown to 16,384 handles, in a mapped copy of the
+exe.
+
 ## Other exes: DirectX 9 and tablet
 
 The game ships three exes built from the same source on the same day: `CivilizationV_DX11.exe`,
@@ -285,11 +300,14 @@ The game code the fix relies on is the same in all three, with these exceptions:
   uploads, GPU-only buffers and DXVK were all tried; none helped (see the
   [research notes](RESEARCH-NOTES.md#conclusion-on-the-gpu-driver-regions-2026-10-30)).
 - **Grey terrain tiles after long scrolls on Huge maps.** The game textures under half of such a
-  map at once, capped by a fixed table of 12,288 texture handles. Raising the pool or the page-in
-  rate past the game's 8 broke textures or stranded tiles
+  map at once (a pool of 6,144 terrain base textures, at most 8,096 in its structure). Raising the
+  pool broke textures (it ran out the 12,288 texture handles, before `TextureHandles` existed), and
+  raising the page-in rate past the game's 8 stranded tiles
   ([details](RESEARCH-NOTES.md#grey-tiles-after-scrolling-far-2026-10-30-terrain-page-in-and-base-texture-pool)).
-- **Black UI squares** on DX11 with EUI/VP are a separate GPU/driver issue. Turning off GPU texture
-  decode and the HD strategic view fixes them.
+- **Black UI squares** on DX11 with EUI/VP: most likely the full texture table, which GPU texture
+  decode and the HD strategic view fill sooner (a big mod set loaded with 12,991 textures with
+  both on). `TextureHandles` gives 4,096 more; turning those two settings off still helps if a game
+  needs more than that. The DirectX 9 and tablet exes keep the game's 12,288.
 
 ## Diagnostics
 

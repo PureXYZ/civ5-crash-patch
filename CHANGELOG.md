@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Room for more textures: no more black icons in big modded games** (on by default;
+  `TextureHandles=0` turns it off). Every texture the game makes takes one of 12,288 handles, and
+  the game keeps nearly all of them: every icon atlas it loads stays. A big mod set on a Huge map
+  at the highest terrain detail ran out at turn ~132, and from then on new textures were blank
+  (black or magenta squares on icons and city banners, "Error loading font texture"). GPU Texture
+  Decode and High Detail Strategic View use more, which is likely why turning them off helped
+  against the black squares. The fix moves the per-texture records to a block of their own and
+  grows the handle table in place to 16,384 handles, rewriting the 102 references to the moved
+  parts (found through the exe's relocations) and the table's own offsets after checking every
+  one. It costs 14.4 MB of address space. In game, with that mod set and all three settings on, a
+  save loaded with 12,991 textures (703 past the old limit) and every icon was right. The log now
+  also says when the table passes 90% and when it is full. DirectX 11 exe only. A new test,
+  `texhandlestest`, runs the game's own handle code, grown, in a mapped copy of the exe.
 - **SQLite heap on mimalloc** (on by default; `DbHeapMimalloc=0` turns it off). The game
   database's SQLite memory lives in a Windows heap that keeps its load-time peak: 94 MB held for
   about 14 MB live after loading a large mod set. The option sends that heap's allocate, reallocate,

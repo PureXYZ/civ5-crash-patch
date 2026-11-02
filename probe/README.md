@@ -56,8 +56,9 @@ Most tests are named `CivilizationV_*.exe` so the probe activates inside them. T
 | `msgqueuetest` | The event-queue spill against a stand-in queue, posting from three threads. |
 | `uiqueuetest` | Handler thunks and merged records against a stand-in exe image. |
 | `luaheaptest` | The Lua heap wrappers, 4 threads. |
+| `texhandlestest` | The game's texture handle pool code, grown to 16,384 handles, in the installed DX11 exe mapped as an image: every handle, release and reuse across the old limit, the record getters. Skipped without the game. |
 
-The last three link their module directly and need no ini.
+The last four link their module directly and need no ini.
 
 **Self-checking, not in CI:**
 
@@ -100,6 +101,8 @@ build/CivilizationV_probetest.exe "C:\Program Files (x86)\Steam\steamapps\common
 | `luagc.c` | Lua GC for database query results | on (`LuaGcStepMB=64`) |
 | `luaheap.c` | The game's Lua heap on mimalloc | on (`LuaHeapMimalloc=1`) |
 | `mapgrid.c` | Gives back the map detail grids' startup reserve before a map loads | on (`MapGridReserve=1`) |
+| **Graphics** | | |
+| `texhandles.c` | Room for more than the game's 12,288 textures | on (`TextureHandles=16384`) |
 | **AI turns** | | |
 | `coretick.c` | How often the game core gets an update | on (`GameCoreIntervalMs=10`) |
 | `smallblock.c` | The exe's small-block allocator off once its 32 MB region is full | on (`SmallBlockFallback=1`) |

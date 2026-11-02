@@ -1980,3 +1980,64 @@ CPU, so it is needed while fluid fog is on. No new lever: the fluid fog's size s
 follows `MaxSimultaneousThreads` (24 MB per job thread) and `FluidFOW` (which breaks rendering).
 Lesson for the reservation log: take the owner from the frame after the allocator entry
 (`MSVCR90`/probe malloc wrapper), not the first non-system frame, when both appear.
+
+## Black icons late in a long game: the texture handle table (2026-11-01)
+
+With Sapiens + Gaia's mods on a Huge map (TerrainDetailLevel 3), "Error loading font texture" came
+up twice and icons turned black from about turn 132 on. Read live: the texture handle table was
+full (next handle 12,287, free list empty, 12,115 handles at refcount 1). TerrainDetailLevel 2
+(4,096 terrain base textures instead of 6,144) got it back under the limit: 10,131 handles after
+loading the turn-174 save, 10,126 after 30 minutes of another session, none ever freed. The game
+frees almost nothing: it keeps every icon atlas it has loaded.
+
+The table (DX11 exe+0x3d3e2c0) is one instance of a handle pool template (others: caps 0x100 and
+0x20000), 0x328c0 bytes, built by a static constructor (exe+0x5d2910 -> exe+0x4c7280):
+
+| Offset | What |
+|---|---|
+| +0x0 | spinlock (`InterlockedCompareExchange`) |
+| +0x40 | next new handle (Alloc exe+0x4c5cb0: `cmp eax,3000h`, so handles 1..0x2ffe, then 0) |
+| +0x44 | refcount[0x3000] |
+| +0xc044 | frame index 0..3 |
+| +0xc048 | 4 release queues (`FFastVector<int>`, 0x200 inline, 0x810 bytes each); Release (exe+0x1e8df0) adds a handle whose count reaches 0 |
+| +0xe088 | item[0x3000], 12 bytes: resource, shader view, one more pointer |
+| +0x32088 | handles past their 4 frames (the frame flush exe+0x4c33d0 moves a queue here) |
+| +0x32898 | free list, a deque of 61-handle blocks (recycle exe+0x4c48d0 fills it; size at +0x328b8) |
+
+Right after it (exe+0x3d70b80, up to the next pool at exe+0x4838b80) is a static array of 0x3000
+records of 0x398 bytes: the texture's description, width and height (+0x28c, +0x290), views
+(+0x2b8, and render-target views from +0x2bc), memory size (+0x29c, summed by the stats at
+exe+0x4bf3d0). Nothing else in the
+exe is indexed by a texture handle: every handle-indexed access in the texture code
+(exe+0x4bb000-0x4c8000) goes to the refcounts, items or records; the other static tables there are
+indexed by viewport, sampler or other pools' handles. Handles are stored as 16-bit values in the
+bind lists (exe+0x4bd160), and no code compares a handle with 0x3000 except Alloc.
+
+References, from the exe's base relocations: 258 into the pool (179 `mov ecx, pool` for its
+functions, 14 lock/unlock, 15 into +0x40/+0x44 inline, 50 past the refcounts) and 52 into the
+records, all of those 102 in the texture code, none outside .text. The pool's functions reach
+past the refcounts only through `this` with 32-bit displacements: 42 of them, plus the cap and the
+constructor's two memset sizes (0xc000, 0x24000). AddRef (exe+0x306290) is folded with four other
+pools but only touches +0x0 and +0x44. All of Release's 161 callers, Alloc's 9 and the flush,
+recycle, constructor and destructor's single callers pass this pool.
+
+The fix (`TextureHandles=N`, texhandles.c): the records move to a block of our own, the pool grows
+in place into their old space (refcounts N entries; +0xc044..+0x32088 move by 4 x (N - 0x3000),
++0x32088..+0x328c0 by 16 x), and every one of the 102 references and 45 operands is rewritten
+after all were checked. The old records' space past the grown pool is set to PAGE_NOACCESS. N is
+capped at 16,384 (14 bits, like 0x3000). Cost: N x 920 bytes of address space (14.4 MB at 16,384);
+the old records' 11 MB stay in the image. `texhandlestest` maps the installed exe, binds the few
+imports the pool code calls, sends the FSBA allocator to `_aligned_malloc`, applies the change and
+drives the game's own constructor, Alloc (all 16,382 handles, then 0), Release into one queue
+past its inline 0x200 entries across the old limit, flush x 4, recycle, Alloc from the free list,
+AddRef, the record getters exe+0x4bc840 / +0x4bc860, and the destructor. Leaving the cap
+unchanged or skipping Release's two offsets makes it fail.
+
+In game (session 20261101_215143, TextureHandles=16384, TerrainDetailLevel 3 with GPU texture
+decode and the HD strategic view on): applied at 0.01 s, no CEG quit, nothing touched the
+inaccessible old records. After loading the turn-174 save: 12,991 handles (703 past 0x3000, all
+with a resource, a view and a record), free list empty, the frame index cycling; no change over
+the next minutes, and every icon looked right. So with these settings the game's table is already
+too small at load, which makes the October "black squares with GPU texture decode" most likely
+this table too (turning those two off lowers the number of textures) rather than a driver bug.
+The option is on by default since.

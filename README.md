@@ -39,8 +39,10 @@ busy turns, right after loading a big save, or late in a long session.
 | **Crash when you quit.** | A crash report on the way out to the desktop. Your saves were never affected. |
 | **Slow AI turns.** Most of a late-game AI turn is the game waiting on itself, not the AI thinking. | Late-game AI turns of a minute or more. In testing they went from about 65-70 s to about 45-50 s (with one Vox Populi option, see [tips](docs/TROUBLESHOOTING.md#ai-turns-are-slow)). |
 | **Hitches while you pan the map during AI turns.** Some screen panels (and mods such as Global Relations) redraw every time the AI changes something. | The map stutters or freezes for a moment while you scroll during AI turns. |
+| **Black icons in big modded games.** The game can hold only 12,288 textures and keeps nearly every one it loads. Big mod sets fill that, sooner with GPU Texture Decode and High Detail Strategic View. The fix makes room for 16,384 (DirectX 11). | Black or magenta squares on icons and city banners, "Error loading font texture". |
 
-All of them work in every mode the game offers: DirectX 11, DirectX 9 and tablet. Some change
+All of them work in every mode the game offers: DirectX 11, DirectX 9 and tablet, except the
+room for more textures, which is DirectX 11 only for now. Some change
 exact places in the game, and each checks those places first; with a version of the game other
 than the final Steam one (1.0.3.279) they switch themselves off and say so in the log.
 
@@ -67,10 +69,10 @@ Takes about two minutes.
 That's it. You don't need the settings file in the zip's `optional` folder; the fix works
 without it.
 
-> **Using EUI or Vox Populi?** If you see black squares on icons or city banners in DirectX 11,
-> open **Options → Video Options** in the game, turn off **GPU Texture Decode** and
-> **High Detail Strategic View**, and restart the game. This is a separate graphics issue that
-> the fix doesn't change for you.
+> **Still seeing black squares on icons or city banners?** The fix gives the game room for a
+> third more textures, which is what runs out. If a game needs even more, open
+> **Options → Video Options**, turn off **GPU Texture Decode** and **High Detail Strategic View**,
+> and restart the game ([details](docs/TROUBLESHOOTING.md#black-squares-on-icons-or-city-banners)).
 
 ### Check that it's working
 

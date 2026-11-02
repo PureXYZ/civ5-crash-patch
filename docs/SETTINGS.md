@@ -10,6 +10,7 @@ diagnostics used to find the bugs.
 - [Memory savings](#memory-savings-on-by-default)
 - [Faster AI turns](#faster-ai-turns-on-by-default)
 - [Fewer hitches while panning in AI turns](#fewer-hitches-while-panning-in-ai-turns-on-by-default)
+- [More textures](#more-textures-on-by-default)
 - [General](#general)
 - [Diagnostics](#diagnostics-off-by-default)
 
@@ -45,6 +46,7 @@ exe they log why and stay off. `D3DStats` needs a Direct3D 11 exe (DX11 or table
 | Keep every log file instead of the newest 20 launches | `KeepSessions=0` |
 | Write detailed memory logs for a bug report | `Telemetry=1` |
 | Stop the log from recording freezes | `HangSeconds=0` |
+| Give back the 14 MB the bigger texture table takes | `TextureHandles=0` |
 
 ---
 
@@ -254,6 +256,27 @@ data is wrapped).
   each run left was still a ~300 ms freeze.) Listeners see only the last meeting of a merged burst,
   up to 30 s late. No listener in the base game, EUI or Vox Populi needs every meeting; if a mod
   shows or records every one, set 0.
+
+---
+
+## More textures (on by default)
+
+| Key | Default | What it does |
+|---|---|---|
+| `TextureHandles` | 16384 | How many textures the game can hold at once, at most 16384. 0 = the game's 12,288. |
+
+**`TextureHandles`.** Every texture the game makes (icons, UI atlases, fonts, terrain tiles,
+leader scenes) takes one of 12,288 handles, and the game almost never gives one back: it keeps
+every icon atlas it has loaded. A large mod set fills that table, sooner with GPU Texture Decode,
+High Detail Strategic View and the highest terrain detail, and every texture made after that is
+blank: black or magenta squares on icons and city banners, and the "Error loading font texture"
+message. With 16384 there is room for 4,096 more without lowering any setting. In a test with a
+big mod set on a Huge map, with all three of those on, a save loaded with 12,991 textures, which
+is already past the game's limit, and every icon was right. The fix moves the game's per-texture
+records (920 bytes each) to a block of their own, 14.4 MB of address space at 16384, and grows the
+table in place, after checking the game's code byte for byte. The `texhandles:` line of each
+report shows the handles in use, and the log says when the table passes 90% and when it is full.
+DirectX 11 exe only for now.
 
 ---
 

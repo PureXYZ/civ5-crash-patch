@@ -62,9 +62,15 @@ those too.
 
 ## Black squares on icons or city banners
 
-Common with EUI or Vox Populi in DirectX 11. It's a graphics issue, not memory, and the fix
-doesn't change it. In the game, open **Options → Video Options**, turn off
-**GPU Texture Decode** and **High Detail Strategic View**, then restart the game.
+Common with EUI, Vox Populi and other big mod sets in DirectX 11. The game can hold only 12,288
+textures and keeps nearly every one it loads; once that's full, new icons come out black or
+magenta, and you may see "Error loading font texture". **GPU Texture Decode**, **High Detail
+Strategic View** and the highest terrain detail fill it sooner. The fix makes room for 16,384 in
+DirectX 11, which was enough for a big mod set on a Huge map with all three on.
+
+If you still see them, the events log in the `civprobe` folder says `the texture table is full`.
+Then open **Options → Video Options** in the game, turn off **GPU Texture Decode** and
+**High Detail Strategic View**, and restart the game.
 
 ## Grey tiles when you scroll far across the map
 
