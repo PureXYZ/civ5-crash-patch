@@ -158,6 +158,14 @@ are redirected, and each block keeps its requested size, so the game's own Lua m
 exact. In game the Windows Lua heap went from 193 to 20 MB (about 33 MB saved at 10 minutes, more
 as a session goes on). The `luaheap:` line of each report shows live Lua MB.
 
+**`DbHeapMimalloc` (experimental, off by default; `DbHeapMimalloc=1` turns it on).** The game
+database gives SQLite a Windows heap of its own, which keeps its load-time peak. With a large mod
+set SQLite peaks at about 78 MB while the mods load and then uses about 14 MB, but the heap still
+holds 94 MB. This option moves that heap's four calls to mimalloc the same way as
+`LuaHeapMimalloc`, after checking the database DLL's code. The `dbheap:` line of each report shows
+live SQLite MB. In one test on a late Huge save it gave 74 MB more free memory at 10 minutes
+(SQLite peaked at 72 MB while loading and kept 12 MB live), with no change in loading time.
+
 ---
 
 ## Faster AI turns (on by default)

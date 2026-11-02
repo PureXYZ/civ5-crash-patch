@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **SQLite heap on mimalloc** (experimental, off by default; `DbHeapMimalloc=1`). The game
+  database's SQLite memory lives in a Windows heap that keeps its load-time peak: 94 MB held for
+  about 14 MB live after loading a large mod set. The option sends that heap's allocate, reallocate,
+  free and size calls to mimalloc, as `LuaHeapMimalloc` does for Lua, after checking the database
+  DLL's SQLite memory methods byte for byte. In one test on a late Huge save: 74 MB more free at
+  10 minutes, no change in loading time. `luaheaptest` now drives both heaps and checks the
+  installed database DLL when the game is present.
+
 ## 1.2.1
 
 ### What's new

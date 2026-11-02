@@ -25,7 +25,8 @@ $CC -O2 -Wall -static -Wl,--large-address-aware -o build/CivilizationV_restest.e
 $CC -O2 -Wall -static -DMSGQUEUE_TEST -o build/msgqueuetest.exe msgqueuetest.c msgqueue.c exes.c
 # uiqueue test: handler-table thunks and data-dirty merging against a stand-in exe image.
 $CC -O2 -Wall -static -DUIQUEUE_TEST -o build/uiqueuetest.exe uiqueuetest.c uiqueue.c exes.c
-# luaheap test: the Lua heap wrappers against a stand-in heap, 4 threads.
+# luaheap test: the Lua and SQLite heap wrappers against stand-in heaps, 4 threads (+ the real
+# database DLL's allocator when the game is installed).
 $CC -O2 -Wall -static -DLUAHEAP_TEST -o build/luaheaptest.exe luaheaptest.c luaheap.c exes.c build/mimalloc.o $MILIBS
 # d3dstats test: counts known D3D11 calls through the hot-patched d3d11.dll (needs a D3D11 GPU).
 $CC -O2 -Wall -static -DD3DSTATS_TEST -o build/d3dstatstest.exe d3dstatstest.c d3dstats.c exes.c -ld3d11
