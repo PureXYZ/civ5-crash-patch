@@ -45,6 +45,7 @@ turns go further.
 | Fewer hitches | Data-dirty records within 250 ms and `TeamMet` records within 30 s of the last run are merged into one late run. | ✔ | [`uiqueue.c`](../probe/uiqueue.c) |
 | Texture handles | The game's table of 12,288 textures grows to 16,384 (up to 32,768): the per-texture records move out and every reference is rewritten. | ✔ | [`texhandles.c`](../probe/texhandles.c) |
 | Terrain base textures | Each map gets the terrain base textures it needs (two per tile that isn't deep water) instead of the game's 6,144, so the whole map stays textured. | ✔ | [`terrain.c`](../probe/terrain.c) |
+| Low-memory warning | Under 200 MB of free address space, the game's own alert line tells the player to save and restart. | | [`memwarn.c`](../probe/memwarn.c) |
 
 ## Loading and safety checks
 
@@ -319,7 +320,8 @@ The game code the fix relies on is the same in all three, with these exceptions:
 ## Known limits
 
 - **Large saves still use most of the address space.** A late-game Huge save with many civs takes
-  about 1.1 GB just to load, leaving 300–400 MB of headroom. The events log warns under 200 MB free.
+  about 1.1 GB just to load, leaving 300–400 MB of headroom. Under 200 MB free, the game shows a
+  warning to save and restart ([below](#low-memory-warning)), and the events log records it.
 - **GPU driver regions.** The Direct3D driver maps CPU-visible buffers into the game in 32 MB
   regions that the kernel creates and never gives back; late in a session they were the only thing
   still growing. They come from the game's per-frame buffer uploads. Trimming the device, splitting
@@ -342,6 +344,32 @@ The game code the fix relies on is the same in all three, with these exceptions:
   ([details](RESEARCH-NOTES.md#leader-head-texture-data-gpu-texture-decode-already-keeps-it-out-of-memory-2026-11-02)). Terrain detail one step down
   frees nothing on a big map while `TerrainBaseSlots` is on, since every tile still gets its two
   textures. The DirectX 9 and tablet exes keep the game's 12,288.
+
+## Low-memory warning
+
+The sampler measures free address space every 2 seconds (`probe.c`). When it drops under
+`LowMemoryWarnMB` (200), `memwarn.c` shows a line of text at the top of the screen telling the
+player to save and restart, through the game's own `Events.GameplayAlertMessage(text)`, the alert
+line `InGame.lua` shows for 8 seconds. Calling an Event from Lua doesn't call its listeners: the
+event's `Call` posts a record (GameplayAlertMessage is type 0x73 of the core-to-UI queue), and the
+main thread hands it to the listeners in its next pass over the queue. That post has no lock of its
+own, and in the game only the main thread calls Events from Lua, inside the game's Lua lock. So the
+warning is posted only from there:
+
+- at the return of a Lua database call that the Lua GC fix wraps, on the game's main thread, while
+  it holds the game's Lua lock (found as for the quit-crash guard), and not while Lua runs
+  finalizers or the GC fix is collecting;
+- inside `lua_cpcall`, so a Lua error is caught and the database call's results stay as they were;
+- once the game's handler for type 0x73 has a listener: its list of delegates, one per UI context
+  that listens (2 in game: `InGame.lua` and EUI's panel). In the main menu there is none, and the
+  warning waits, checked at most once a second. (`Events.GameplayAlertMessage.Count()` can't tell:
+  each UI context has its own `Events` table and counts only its own listeners.) The list's place is
+  found from the game's registration of type 0x73, in the function it calls with the name
+  `GameplayAlertMessage` (both checked in all three exes).
+
+It shows once per drop, and again only after free space has climbed back 100 MB above the line. No
+game code changes and nothing reaches the save. With `LuaGcStepMB=0` (no database call hook) or in
+an unknown exe (no Lua lock or listener list) the warning stays in the log.
 
 ## Diagnostics
 

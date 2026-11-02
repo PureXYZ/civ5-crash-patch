@@ -9,7 +9,7 @@ problems with big games, and what to do if something goes wrong.
   - [Black squares on icons or city banners](#black-squares-on-icons-or-city-banners)
   - [Grey tiles when you scroll far across the map](#grey-tiles-when-you-scroll-far-across-the-map)
   - [AI turns are slow](#ai-turns-are-slow)
-  - [The log says "under 200 MB free"](#the-log-says-under-200-mb-free)
+  - [The game says it is running out of memory](#the-game-says-it-is-running-out-of-memory)
   - [DirectX 9 shows only icons, smeared across the map](#directx-9-shows-only-icons-smeared-across-the-map)
   - [Units, flags or panels look out of date after AI turns](#units-flags-or-panels-look-out-of-date-after-ai-turns)
   - [The game freezes for a long time in AI turns](#the-game-freezes-for-a-long-time-in-ai-turns)
@@ -138,11 +138,28 @@ took late-game AI turns from about 65-70 seconds to about 45-50 in testing.
 If you'd rather have even shorter AI turns and don't mind more stutter while panning during them,
 see `UiQueueShare` in [Settings](SETTINGS.md#faster-ai-turns-on-by-default).
 
-## The log says "under 200 MB free"
+## The game says it is running out of memory
 
 A big late-game save can still use most of the memory a 32-bit game gets, and the fix can't raise
-that limit. When the newest `events_….log` says *under 200 MB free*, save, quit to the desktop and
-load the save again. That starts the game with a clean slate.
+that limit. When less than 200 MB is left, this appears at the top of the screen for 8 seconds:
+
+> Civ V Crash Patch: the game is running out of memory (187 MB left).
+> Save, quit to the desktop and load the save again to avoid a crash.
+
+The newest `events_….log` then says *under 200 MB free* too. Save, quit to the desktop and load
+the save again. That starts the game with a clean slate. Playing on risks a crash: once nothing is
+left, the game crashes the next time it needs memory.
+
+- **It shows once each time free memory drops under 200 MB.** It shows again only if free memory
+  climbs back to 300 MB and then drops under 200 MB again.
+- **In the main menu or while a game loads, it waits** until the map is on screen.
+- **It changes nothing in your game or save:** it's the same line of text the game uses for its own
+  alerts. With EUI it's also kept in the tooltip of the alert button.
+- **To warn earlier or later, or to keep it out of the game,** see `LowMemoryWarnMB` in
+  [Settings](SETTINGS.md#low-memory-warning-lowmemorywarnmb).
+
+If it comes up early in your games, the terrain textures may be taking more than you can spare: see
+[Grey tiles](#grey-tiles-when-you-scroll-far-across-the-map) for `TerrainBaseSlots`.
 
 ## DirectX 9 shows only icons, smeared across the map
 

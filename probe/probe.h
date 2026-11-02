@@ -28,6 +28,9 @@ typedef struct {
     // uiqueue.c
     DWORD uiProcess, uiOwner, uiLocked, uiGame, uiMode, uiSite, uiRet1, uiRet2, uiDispatch, uiListeners;
     DWORD uiRegDirty, uiRegTeamMet;
+    // memwarn.c: the registration of record type 0x73 (GameplayAlertMessage) with the generic
+    // listener handler, and the call that names it (push "GameplayAlertMessage"; call)
+    DWORD uiRegAlert, uiAlertCall;
     // mapgrid.c
     DWORD gridReserve, gridReserveFn, grids, gridFree;
     // luaheap.c
@@ -75,6 +78,7 @@ const char *d3dstats_check(BYTE *exe, const GameExe *g);
 const char *texhandles_check(BYTE *exe, const GameExe *g);
 const char *terrain_check(BYTE *exe, const GameExe *g);
 const char *intro_check(BYTE *exe, const GameExe *g);
+const char *memwarn_check(BYTE *exe, const GameExe *g);
 
 // alloctrack.c
 void alloc_init(const WCHAR *ini);
@@ -100,6 +104,15 @@ __declspec(dllexport) int CivProbe_IsMimalloc(const void *p);  // p is in a mima
 // luaguard.c
 void luaguard_init(const WCHAR *ini);
 void luaguard_report(void);
+CRITICAL_SECTION *luaguard_lua_lock(void);  // the exe's Lua lock (also with LuaUnrefGuard=0), or NULL
+
+// memwarn.c
+void memwarn_init(const WCHAR *ini);  // DllMain (takes the main thread's id)
+void memwarn_report(void);
+int memwarn_feed(ULONGLONG freeBytes);  // sampler thread: 1 when free space just went under the threshold
+DWORD memwarn_threshold_mb(void);       // LowMemoryWarnMB (0 = off)
+int memwarn_due(void);                  // an in-game warning waits to be shown
+void memwarn_show(struct lua_State *L); // luagc.c, at a wrapped DB call's return: shows it if it may
 
 // audioguard.c
 void audioguard_init(const WCHAR *ini);

@@ -29,6 +29,8 @@ CATALOG = [
     ('uiRet1', 'code', 0x41db0d), ('uiRet2', 'code', 0x41dc8d), ('uiDispatch', 'code', 0x23aba0),
     ('uiListeners', 'code', 0x23e530), ('uiTableArg', 'code', 0x385b8d), ('uiDispatchCall', 'code', 0x385ba2),
     ('uiRegDirty', 'code', 0xc583c), ('uiRegTeamMet', 'code', 0x4a4ec),
+    # memwarn.c
+    ('uiRegAlert', 'code', 0x24c94c), ('uiAlertCall', 'code', 0x2bd9b9),
     # mapgrid.c
     ('gridReserve', 'code', 0x76018), ('gridReserveFn', 'code', 0x24c620), ('grids', 'data', 0x991270),
     ('gridFree', 'code', 0x413cf0), ('fsbaDealloc', 'code', 0x4138b0),

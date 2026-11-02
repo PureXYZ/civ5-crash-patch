@@ -46,6 +46,7 @@ exe they log why and stay off. `D3DStats` needs a Direct3D 11 exe (DX11 or table
 | Keep every log file instead of the newest 20 launches | `KeepSessions=0` |
 | Write detailed memory logs for a bug report | `Telemetry=1` |
 | Stop the log from recording freezes | `HangSeconds=0` |
+| Keep the "running out of memory" message off the screen (it stays in the log) | `LowMemoryWarnInGame=0` |
 | Give back the address space the terrain textures take on big maps (they turn grey again when you scroll far) | `TerrainBaseSlots=0` |
 | Give back the 29 MB the bigger texture table takes (also turns the terrain textures off) | `TextureHandles=0` |
 
@@ -343,13 +344,40 @@ crashed the game while loading a save). DirectX 11 exe only; it needs `TextureHa
 |---|---|---|
 | `Enabled` | 1 | 0 turns everything off. The DLL then only forwards `msimg32.dll`. |
 | `KeepSessions` | 20 | How many launches' worth of log files to keep. 0 = keep everything. The previous launch is always kept, so the next one can check how it ended (`KeepSessions=1` keeps two). |
-| `Telemetry` | 0 | Write detailed memory logs: the samples CSV and address-space maps ([below](#telemetry-telemetry1)). Without it, the events log still gets a `memory (…)` line at 1 minute, every 10 minutes, at each logged exception and at exit, and a warning below 200 MB free. |
+| `Telemetry` | 0 | Write detailed memory logs: the samples CSV and address-space maps ([below](#telemetry-telemetry1)). Without it, the events log still gets a `memory (…)` line at 1 minute, every 10 minutes, at each logged exception and at exit, and a warning below `LowMemoryWarnMB` free. |
+| `LowMemoryWarnMB` | 200 | When free address space drops under this many MB, tell the player in the game to save and restart, and log it ([below](#low-memory-warning-lowmemorywarnmb)). Once per drop: again only after it climbs back 100 MB above this. At most 3000. 0 = no warning, also not in the log. |
+| `LowMemoryWarnInGame` | 1 | 0 = the low-memory warning goes to the events log only. |
 | `CrtFailureLog` | 1 | Log the C runtime's ways of ending the game (`/GS` and invalid-parameter reports, `abort`, `terminate`, pure virtual calls, and the type of an uncaught C++ exception), with the caller and the stack. |
 | `LastRunCheck` | 1 | When the previous launch's events log doesn't end with `process exiting`, look up what Windows recorded for it (Application Error 1000 or Application Hang 1002) and add it to that log. Catches endings no handler sees, like fast-fail. |
 | `HangSeconds` | 30 | When the game window hasn't responded this long, log where its thread is (position, stack, memory, and the Lua stack when it is inside a Lua database call), and when it responds again. At least 6 (Windows calls a window hung after 5 s). 0 = off. |
 | `HangRepeatSeconds` | 60 | While a freeze lasts, log the thread again this often (up to 5 times). Both at most 3600. |
 | `IntervalMs` | 2000 | Sampler interval, 250 to 60000. |
 | `PeriodicSnapshotMinutes` | 10 | Interval of the periodic reports and address-space maps. |
+
+### Low-memory warning (`LowMemoryWarnMB`)
+
+A 32-bit game has 4 GB of address space, and a very large late game can still fill it. When the
+free part drops under `LowMemoryWarnMB`, this shows at the top of the screen for 8 seconds (EUI
+also keeps it in the tooltip of its alert button):
+
+> Civ V Crash Patch: the game is running out of memory (187 MB left).
+> Save, quit to the desktop and load the save again to avoid a crash.
+
+The events log gets a `memory (under 200 MB free: …)` line at the same time. What to do about it:
+[Troubleshooting](TROUBLESHOOTING.md#the-game-says-it-is-running-out-of-memory).
+
+- **How it's shown:** through the game's own `Events.GameplayAlertMessage`, the line the game uses
+  for its own alerts. It's posted from the game's main thread at the end of a Lua database lookup
+  made by the game's UI or a mod, while that thread holds the game's Lua lock, so the game is in a
+  state where its own scripts could do the same. Nothing in the game or the save changes.
+- **No in-game screen yet:** in the main menu the warning waits until the in-game screen listens
+  for it (checked at most once a second). Posted while a game loads, it shows once the map is on
+  screen.
+- **Needs the Lua cleanup** (`LuaGcStepMB` above 0), whose database hook it uses, and one of the
+  three Steam exes (the fix needs to know where the game keeps its Lua lock and the list of what
+  listens for the alert). Otherwise the warning is in the log only.
+- **Log:** `memwarn:` lines say when the warning was shown, when it had to wait, and, at each
+  report and at exit, how many times free space crossed the line.
 
 ---
 

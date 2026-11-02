@@ -54,8 +54,9 @@ session, so the fix never starts it. To see the movie again, set `SkipIntroPlaye
 ([Settings](docs/SETTINGS.md#memory-savings-on-by-default)).
 
 **What it can't do:** nothing can raise the 4 GB limit of a 32-bit game, so a very large late
-game can still get close to it. The fix writes a warning to its log when that happens; see
-[Troubleshooting](docs/TROUBLESHOOTING.md#the-log-says-under-200-mb-free).
+game can still get close to it. When that happens, the fix tells you in the game to save and
+restart before it crashes; see
+[Troubleshooting](docs/TROUBLESHOOTING.md#the-game-says-it-is-running-out-of-memory).
 
 ---
 

@@ -305,7 +305,7 @@ __declspec(dllexport) int CivProbe_CheckExe(const WCHAR *exePath, char *report, 
         {"uiqueue tables", uiqueue_tables_check}, {"mapgrid", mapgrid_check}, {"luaheap", luaheap_check},
         {"coretick", coretick_check}, {"smallblock", smallblock_check}, {"luaguard", luaguard_check},
         {"d3dstats", d3dstats_check}, {"texhandles", texhandles_check}, {"terrain", terrain_check},
-        {"intro", intro_check},
+        {"intro", intro_check}, {"memwarn", memwarn_check},
     };
     int o = snprintf(report, cap, "%s:", g->name), ok = 1;
     for (size_t i = 0; i < sizeof parts / sizeof parts[0] && o < cap; i++) {
@@ -871,7 +871,7 @@ static DWORD WINAPI sampler(LPVOID unused)
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 
     // Each threshold snapshots once, the first time it is crossed.
-    int snapStart = 0, snapLow64 = 0, snapLow16 = 0, snapLow4 = 0, warnLow = 0;
+    int snapStart = 0, snapLow64 = 0, snapLow16 = 0, snapLow4 = 0;
     double lastPeriodic = 0, lastAllocReport = 0;
     ULONGLONG peakReported = 0;
     int firstTick = 1;
@@ -883,9 +883,10 @@ static DWORD WINAPI sampler(LPVOID unused)
         note_headroom(&s, t);
         note_gpu_chunks(&s, firstTick);
         firstTick = 0;
-        if (!warnLow && s.free_[0] + s.free_[1] < (200ull << 20)) {
-            warnLow = 1;
-            log_headroom(&s, "under 200 MB free: save and restart the game soon");
+        if (memwarn_feed(s.free_[0] + s.free_[1])) {  // and memwarn.c shows it in game
+            char when[80];
+            snprintf(when, sizeof when, "under %lu MB free: save and restart the game soon", memwarn_threshold_mb());
+            log_headroom(&s, when);
         }
 
         prepare_exception_snapshot();
@@ -941,6 +942,7 @@ static DWORD WINAPI sampler(LPVOID unused)
             watch_report();
             cmdstream_report();
             soundlog_report();
+            memwarn_report();
         }
         // Transient spikes (e.g. creating a game) are freed again within a minute, and the
         // rolling "latest" report misses them. Keep one report taken at the highest point.
@@ -1081,6 +1083,7 @@ static void start_probe(void)
     luaheap_init(ini);
     luagc_init(ini);
     luaguard_init(ini);
+    memwarn_init(ini);
     crtfail_init(ini);
     hang_init(ini);
     // watch before cmdstream: the exe's malloc then reaches cmdstream's wrapper first. Its
@@ -1145,6 +1148,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         watch_report();
         cmdstream_report();
         soundlog_report();
+        memwarn_report();
         crtfail_log_last_cxx();
         log_event("process exiting");
         drop_exception_snapshot();

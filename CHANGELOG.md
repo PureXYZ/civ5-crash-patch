@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### What's new
+
+- **A warning in the game before memory runs out.** Nothing can raise the 4 GB limit of a 32-bit
+  game, so a very large late game can still fill it. When less than 200 MB is left, the game now
+  says so at the top of the screen: save, quit to the desktop and load the save again. Until now
+  this was only in the log, which players read after the crash. It changes nothing in the game or
+  the save.
+
+### Details
+
+- **Low-memory warning: `LowMemoryWarnMB`** (200 by default; 0 = no warning;
+  `LowMemoryWarnInGame=0` keeps it in the log only). Shown with the game's own
+  `Events.GameplayAlertMessage`, which posts a record (type 0x73 of the core-to-UI queue) that the
+  main thread hands to `InGame.lua`'s listener. Posted only at the return of a database call the
+  Lua GC fix wraps, on the main thread, while it holds the game's Lua lock, outside finalizers and
+  the fix's own collections, inside `lua_cpcall`, and only once the game's handler for type 0x73
+  has a listener (its delegate list, one per listening UI context; found from the registration,
+  checked in all three exes): in the main menu it waits, checked at most once a second.
+  Once per crossing; armed again 100 MB above the line. `memwarn:` lines in the events log. New
+  self-checking test `memwarntest` (needs the game's `lua51_Win32.dll`).
+
 ## 1.3.0
 
 ### What's new

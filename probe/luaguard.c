@@ -271,6 +271,21 @@ static CRITICAL_SECTION *find_lua_lock(BYTE *exe, const GameExe *g)
 
 const char *luaguard_check(BYTE *exe, const GameExe *g) { return find_lua_lock(exe, g) ? NULL : "Lua lock wrappers"; }
 
+// For memwarn.c (main thread only): the lock the guard uses (or the test's stand-in), else the
+// exe's, found the same way, also when the guard is off.
+CRITICAL_SECTION *luaguard_lua_lock(void)
+{
+    static CRITICAL_SECTION *found;
+    static int looked;
+    if (g_luaLock) return g_luaLock;
+    if (!looked) {
+        BYTE *exe = (BYTE *)GetModuleHandleW(NULL);
+        found = find_lua_lock(exe, game_exe(exe));
+        looked = 1;
+    }
+    return found;
+}
+
 static void patch_module(BYTE *base)
 {
     if ((HMODULE)base == g_lua) return;

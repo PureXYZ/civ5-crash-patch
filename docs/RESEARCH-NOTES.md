@@ -61,6 +61,8 @@ In the order they happened:
    [CEG checks more code than cegall.py saw](#steams-ceg-checks-more-code-than-cegallpy-saw)
 13. **Leader-head textures.**
    [GPU Texture Decode keeps them out of memory](#leader-head-texture-data-gpu-texture-decode-already-keeps-it-out-of-memory-2026-11-02)
+14. **Warning the player.**
+   [The low-memory warning in game](#the-low-memory-warning-in-game-2026-11-02)
 
 ## Why the game crashes
 
@@ -2580,3 +2582,89 @@ exe+0xa7849 in `CvLeaderHeadTextureManager.cpp`). Could the patch give it back?
 - **Conclusion:** keep GPU Texture Decode on (the game's default). With the bigger texture table it no
   longer causes black squares, and it keeps ~150 MB of leader textures (for a Huge game's
   17 leaders) out of the address space. The player docs now say so.
+
+## The low-memory warning in game (2026-11-02)
+
+Since 1.0.0 the sampler logs `under 200 MB free: save and restart the game soon`, but players read
+the events log only after a crash. The aim: show it in the game, without touching gameplay or saves
+and without calling Lua outside the game's Lua lock.
+
+- **Routes looked at.** The window title and `FlashWindowEx` are invisible in fullscreen; a message
+  box would block the game and pull it out of fullscreen. The game's own alert line is visible and
+  harmless: `Events.GameplayAlertMessage(text)`, whose listener in `InGame.lua` (base game,
+  Expansion, Expansion2, and Community Patch's override) shows the text centred near the top of the
+  screen for 8 seconds. EUI's `NotificationPanel.lua` also adds it to its alert button's tooltip;
+  the Ingame Editor has its own copy of the listener, commented out. No shipped Lua and no installed
+  mod calls the event; only the exe posts it.
+- **How a Lua Event works in the exe (DX11).** Every LuaEvent gets `Add`, `Call`,
+  `CallImmediate`, `Count`, `Dispatch`, `Remove` and `RemoveAll` closures (one registration
+  function per event type, e.g. exe+0x2daa5a on), and a metatable whose `__call` (exe+0x33b5c0,
+  set up at exe+0x171200) calls `Call` with the arguments after `self`.
+  - `Count` (exe+0x36c520) returns `lua_objlen` of upvalue 1, the listener table: the number of
+    listeners of *that* object. Each UI context has its own `Events` table (each object keeps a
+    `callback_thread`, its context's coroutine, and an `event_handle` userdata whose `__gc` lets go
+    of the engine side), so `Count()` sees only the calling context's listeners; see the first
+    in-game run below.
+  - `Call` (one event type's, exe+0x28e8e0) converts the arguments (exe+0x38f0b0) and appends a
+    0x20-byte record (`[0x20][1][0][0]` and 16 bytes) to a double-buffered queue, the half picked by
+    `[queue+0x20] & 1` (exe+0x26f940), with no lock. `CallImmediate` (exe+0x41250) instead calls
+    the handler from a table at once.
+  - GameplayAlertMessage is set up at exe+0x24c900 (called from exe+0x2bd9b9 with the name): it
+    stores the generic Lua-listener handler exe+0x23e530 in the pair for type 0x73 of the
+    core-to-UI queue's owner (exe+0x2610200 + 8 + 0x73 * 8; see
+    [AI turn time](#ai-turn-time-2026-10-2930-alexander-huge-save-turns-367-425-vp--eui)) and names
+    type 0x73 (exe+0xa2210). So the text reaches the listeners from the main thread's pass over that
+    queue, like the game's own alerts. The handler (a jump to exe+0x4668e0) calls a list of
+    delegates in its context (count at +0x14, 0x14-byte entries at +8 with object +0xc and function
+    +0x10): one per UI context that listens. Read live in game (ReadProcessMemory, session
+    20261102_045111): type 0x73 had 2 (InGame.lua and EUI's panel), 0x66 data-dirty 8, 0x77 TeamMet
+    1 (Global Relations, as the uiqueue work found). The same registration (+0x4c into the function
+    the game calls with the name) is at tablet exe+0x3af55c (called from exe+0x24bbe9) and DX9
+    exe+0x874ec (from exe+0x27f879).
+  - Conclusion: calling the event posts, it doesn't run UI code at that moment; but the post has no
+    lock of its own, so it must come from where the game's UI scripts call Events: the main thread,
+    inside the Lua lock.
+- **What was built (`memwarn.c`, `LowMemoryWarnMB=200`, `LowMemoryWarnInGame=1`).** The sampler
+  arms the warning when free address space (both halves) drops under the line, and logs the
+  `memory (under 200 MB free: …)` line. The warning is posted at the return of a database call that
+  luagc wraps (the same kind of point where a script's own `collectgarbage()` or Event call would
+  run), only if: the thread is the main thread (the one that loads the DLL, the UI thread);
+  it owns the exe's Lua lock (`OwningThread`; the lock luaguard finds from the wrapper bytes, also
+  with the guard off); Lua isn't in its finalize phase and luagc isn't collecting (a wrapped call
+  may be a DB `__gc`); the engine's delegate list for type 0x73 isn't empty (its place checked at
+  start: `memwarn_check`, the registration and the named call, `uiRegAlert` / `uiAlertCall` in
+  exes.c, also in the harness). It runs inside
+  `lua_cpcall`, so a Lua error is caught and popped and the DB call's results stay on the stack.
+  While nothing listens it waits, checked at most once a second. Once shown (or after a Lua error)
+  it's done until free space climbs back 100 MB above the line; if free space climbs back before it
+  could be shown, it's dropped. Text: `[COLOR_NEGATIVE_TEXT]Civ V Crash Patch: the game is running
+  out of memory (N MB left).[ENDCOLOR][NEWLINE]Save, quit to the desktop and load the save again to
+  avoid a crash.` No code bytes change (luagc's existing thunks), so no CEG check is involved.
+- **Limits.** It needs luagc's DB call hook (`LuaGcStepMB` above 0) and a known exe (the Lua lock
+  and the listener list).
+  A player who makes no DB call (idle on the map) sees it at the next UI update that looks
+  something up; in an AI turn the UI and mods look things up constantly.
+- **Test (`memwarntest.c`, needs the game's `lua51_Win32.dll`):** the real Lua with a stand-in
+  `Events` table and Lua lock, a stand-in listener count (`CivProbe_MemWarnTestScreen`), free space
+  fed in through `CivProbe_MemWarnFeed`; 21 steps in the child and 10 log checks in the parent (the
+  test exe isn't the game, so the probe must first log "log only"), all passing in 3 of 3 runs. Its
+  DB stand-in runs a full collection first: in the first version the small test heap sat in Lua's
+  finalize phase, where the warning waits on purpose, and two steps failed by GC timing alone.
+  Checked: nothing above the line; after a crossing
+  nothing outside the lock or on another thread inside it; one try while nothing listens, none
+  more within a second; shown once a listener appears, with the free MB in the text; once per
+  crossing, again after a climb back to 300 MB; a Lua error from the event caught (make() still
+  returns its value) and not retried; a climb back before it was shown drops it; no `Events` table
+  waits, then shows.
+- **In-game check, first build (session 20261102_045111, `LowMemoryWarnMB=3000` so it arms at once;
+  Huge VP save):** armed at 18 s, but nothing showed while the user played. Exit report: 55 tries,
+  all on the main thread inside the Lua lock (0 outside it), 54 with `Count()` = 0 in the calling
+  context; the one that posted was at 572.8 s, 5 s before the quit. So the gating worked, and
+  `Count()` was the wrong test (see above).
+- **In-game check, second build (session 20261102_050341, same save and setting):** armed at 12 s,
+  waited in the main menu (22 s), posted at 84.6 s during the load with 1 listener (InGame.lua's,
+  before EUI's panel registered); the map's terrain textures were made at 102 s. The user saw the
+  warning when the load finished, ~20 s after it was posted: InGame.lua's 8-second timer starts at
+  the first display (`shownYet`), which evidently comes only once its screen updates after the load,
+  so the loading screen didn't use up the 8 seconds. No exception or freeze. The test line was then removed
+  from the game's ini.

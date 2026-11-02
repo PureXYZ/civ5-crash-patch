@@ -68,6 +68,10 @@ The last five link their module directly and need no ini.
   unref from a `__gc` finalizer during `lua_close`, then one after it, which the old guard let
   through to `lua51+0x3b05`.
 - `luagctest`: see [the Lua GC fix in detail](#the-lua-gc-fix-in-detail).
+- `memwarntest` needs a copy of the game's `lua51_Win32.dll` in `build/` (skipped without it); it
+  writes its own ini. The low-memory warning on a real Lua state with a stand-in `Events` table and
+  Lua lock, free space fed in through `CivProbe_MemWarnFeed`: once per crossing, only on the main
+  thread inside the lock, only once something listens, a Lua error and a missing `Events` caught.
 - `slacktest`: `CommandStreamTestRets` = two return addresses (see `slacktest.c`).
 - `milabel`: `MiMalloc=1`, `Telemetry=1`; after 65 s the `t60s` VA map must label its 4 MB
   segments `mimalloc`.
@@ -115,6 +119,7 @@ build/CivilizationV_probetest.exe "C:\Program Files (x86)\Steam\steamapps\common
 | `hang.c` | Freeze watchdog: the stuck window thread's position and stack, and its Lua stack inside a Lua DB call | on (`HangSeconds=30`) |
 | `lastrun.c` | After a launch that didn't end normally, appends Windows' Application Error / Hang record to its log | on |
 | `modules.c` | Non-system DLLs in the events log (base, size, timestamp) at start and as they load; the stack scan for logged exceptions | on |
+| `memwarn.c` | Low free address space: the game's alert line tells the player to save and restart (through `Events.GameplayAlertMessage`, from a wrapped Lua DB call on the main thread inside the Lua lock) | on (`LowMemoryWarnMB=200`) |
 | **Diagnostics** | | |
 | `alloctrack.c` | CRT allocation attribution | off |
 | `topdown.c` | Top-down placement, reservation log | off |

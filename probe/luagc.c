@@ -28,6 +28,8 @@
 // finalizers that free the DB's C++ memory. A drive that started after the atomic step
 // first goes round to the next cycle. If the DB allocates another step's worth before
 // the drive ends, the rest is done as one full collection.
+//
+// The thunks' return is also where memwarn.c shows its low address space warning in game.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <string.h>
@@ -359,6 +361,10 @@ __attribute__((used)) int __cdecl luagc_call(lua_CFunction fn, lua_State *L)
     if (!g_inGc && (g_phase || due())) {
         if (g_sliceUs > 0) collect_slice(L);
         else collect(L);
+    }
+    if (!g_inGc && memwarn_due()) {  // the low address space warning (memwarn.c), not while finalizers run
+        BYTE *gcstate = gcstate_of(L);
+        if (gcstate && *gcstate != GCS_FINALIZE) memwarn_show(L);
     }
     return r;
 }

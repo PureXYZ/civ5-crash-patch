@@ -13,8 +13,8 @@ $CC -O2 -DNDEBUG -DMI_STAT=1 -DMI_SKIP_COLLECT_ON_EXIT=1 -DMI_DEFAULT_DISALLOW_A
 MILIBS="-Ithird_party/mimalloc/include -lpsapi -lbcrypt -ladvapi32"
 # Version resource (Properties > Details) for both proxy DLLs.
 i686-w64-mingw32-windres version.rc -O coff -o build/version_res.o
-$CC $CFLAGS -o build/msimg32.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c soundlog.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c intro.c exes.c build/mimalloc.o build/version_res.o proxy_msimg32.def $MILIBS
-$CC $CFLAGS -DPROXY_VERSION -o build/version.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c soundlog.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c intro.c exes.c build/mimalloc.o build/version_res.o proxy_version.def $MILIBS
+$CC $CFLAGS -o build/msimg32.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c memwarn.c mialloc.c watch.c cmdstream.c audioguard.c soundlog.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c intro.c exes.c build/mimalloc.o build/version_res.o proxy_msimg32.def $MILIBS
+$CC $CFLAGS -DPROXY_VERSION -o build/version.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c memwarn.c mialloc.c watch.c cmdstream.c audioguard.c soundlog.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c intro.c exes.c build/mimalloc.o build/version_res.o proxy_version.def $MILIBS
 $CC -O2 -Wall -municode -static -s -Wl,--large-address-aware     -o build/CivilizationV_probetest.exe harness.c -lversion -lmsimg32 -lgdi32
 # Allocation-tracking tests (run with AllocCrt=ucrtbase.dll in civprobe.ini).
 $CC -O2 -fomit-frame-pointer -Wall -static -Wl,--large-address-aware -o build/CivilizationV_alloctest.exe alloctest.c -lmsimg32 -lgdi32
@@ -40,6 +40,8 @@ $CC -O2 -Wall -static -DD3DSTATS_TEST -o build/d3dstatstest.exe d3dstatstest.c d
 llvm-dlltool -m i386 -d lua51_test.def -l build/liblua51_test.a
 $CC -O2 -Wall -shared -static -s -o build/luagc_testdb.dll luagc_testdb.c build/liblua51_test.a
 $CC -O2 -Wall -municode -static -s -Wl,--large-address-aware -o build/CivilizationV_luagctest.exe luagctest.c -lmsimg32 -lgdi32
+# Low address space warning test (needs the game's lua51_Win32.dll in build/; writes its own ini).
+$CC -O2 -Wall -static -Wl,--large-address-aware -o build/CivilizationV_memwarntest.exe memwarntest.c -lmsimg32 -lgdi32
 # mimalloc redirect test: a CRT-less DLL that allocates only through msvcr90 imports, and an exe whose
 # manifest binds msvcr90 like the game (run with MiMalloc=1).
 llvm-dlltool -m i386 -d msvcr90_test.def -l build/libmsvcr90_test.a
