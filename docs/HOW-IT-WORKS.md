@@ -15,11 +15,14 @@ All addresses are RVAs in the final Steam `CivilizationV_DX11.exe` (1.0.3.279, P
   [quit crash](#quit-crash)
 - Memory: [mimalloc](#long-session-fragmentation-mimalloc),
   [Lua database lookups](#huge-map-memory-spike-lua-database-lookups),
-  [Lua heap](#lua-heap-on-mimalloc), [map detail grids](#map-detail-grids)
+  [Lua heap](#lua-heap-on-mimalloc), [SQLite heap](#sqlite-heap-on-mimalloc),
+  [map detail grids](#map-detail-grids), [intro video player](#intro-video-player),
+  [fog particle pools](#fog-particle-pools)
 - [Faster AI turns and fewer hitches](#faster-ai-turns-and-fewer-hitches)
 - Textures: [texture handle table](#texture-handle-table), [terrain base textures](#terrain-base-textures)
 - [Other exes: DirectX 9 and tablet](#other-exes-directx-9-and-tablet)
 - [Known limits](#known-limits)
+- [Low-memory warning](#low-memory-warning)
 - [Diagnostics](#diagnostics)
 
 ## At a glance
@@ -39,8 +42,11 @@ turns go further.
 | Quit-crash guard | Skips `luaL_unref` on a closed `lua_State`; runs registry unrefs on the main thread under the game's Lua lock. | | [`luaguard.c`](../probe/luaguard.c) |
 | mimalloc | Allocations up to 16 KB from the exe, game core, database and Lua go to mimalloc 2.5.2 instead of the fragmenting CRT heap. | | [`mialloc.c`](../probe/mialloc.c) |
 | Lua GC fix | A Lua collection every 64 MB of database allocations made from Lua, spread over the following calls. | | [`luagc.c`](../probe/luagc.c) |
-| Lua heap on mimalloc | The game's own Lua heap, which never shrinks, goes to mimalloc. | ✔ | [`luaheap.c`](../probe/luaheap.c) |
+| Lua heap on mimalloc | The game's own Lua heap, which never shrinks, goes to mimalloc; the heap is made with nothing up front instead of 20 MB. | ✔ | [`luaheap.c`](../probe/luaheap.c) |
+| SQLite heap on mimalloc | The game database's SQLite heap, which keeps its load-time peak, goes to mimalloc; made with nothing up front instead of 5 MB. | | [`luaheap.c`](../probe/luaheap.c) |
 | Map grid reserve | Gives back the 178 MB of map detail grids reserved at startup for the largest map. | ✔ | [`mapgrid.c`](../probe/mapgrid.c) |
+| No intro video player | The opening movie's video player is never started, so the ~75 MB of DirectShow, DirectDraw and Direct3D 9 driver it loads for the whole session stay out. | ✔ | [`intro.c`](../probe/intro.c) |
+| Fog particle pools | The fog of war's particle pools (24 MB per job thread) hold only what one step can write: 8 MB instead of 96 MB with 4 threads. DirectX 11 only. | ✔ | [`fluidpool.c`](../probe/fluidpool.c) |
 | Faster AI turns | Core update every 10 ms instead of 100, the exe's full small-block allocator switched off, up to 3 extra paced passes per frame over the core-to-UI queue. | ✔ | [`coretick.c`](../probe/coretick.c), [`smallblock.c`](../probe/smallblock.c), [`uiqueue.c`](../probe/uiqueue.c) |
 | Fewer hitches | Data-dirty records within 250 ms and `TeamMet` records within 30 s of the last run are merged into one late run. | ✔ | [`uiqueue.c`](../probe/uiqueue.c) |
 | Texture handles | The game's table of 12,288 textures grows to 16,384 (up to 32,768): the per-texture records move out and every reference is rewritten. | ✔ | [`texhandles.c`](../probe/texhandles.c) |
@@ -60,17 +66,33 @@ before the game's imports are bound.
 
 How the fix changes the game, from safest to most specific:
 
-- **Import-table hooks**, set up while the DLL loads: the CRT allocator, the Lua heap's Windows
-  heap calls, Lua, Miles, two `Interlocked*` slots, `PeekMessageW`.
-- **Data writes**: handler tables, a frame-time accumulator, the map grid vectors.
-- **Code patches**, only in the render command stream code, and only where the bytes match the
-  expected ones exactly.
+- **Import-table hooks**, set up while the DLL loads: the CRT allocator; the Windows heap calls of
+  the Lua heap and of the database's SQLite heap, and the `HeapCreate` that makes each; Lua; Miles;
+  two `Interlocked*` slots; `PeekMessageW`; `CoCreateInstance` (the intro player); `qsort` (the
+  terrain top-up).
+- **Data writes**: handler tables, a frame-time accumulator, the map grid vectors, the fog's pool
+  pointers.
+- **Code changes**, only where the bytes match the expected ones exactly, in four parts:
+  - the render command stream: two constructor stubs, the record allocator, the 8 counter
+    increments and the flip call;
+  - the texture handle table: the 102 references to its moved parts, and the pool functions' 42
+    offsets, cap and two memset sizes, rewritten in DllMain before the exe builds the pool;
+  - the terrain base textures: three instructions, in the hand-over to the map and the release at
+    exit;
+  - the fog particle pools: the step launch call and the seeding's first instruction.
 
 Parts marked "Exact places" above use addresses that differ per exe: they look up the running
 exe (PE timestamp and image size) in `exes.c`, which has the final Steam DX11, DirectX 9 and
 tablet exes. Each part checks the code or data it relies on first. If anything differs (another
-build, an unknown exe), that part logs why in the events log and stays off. The game's main loop is never patched:
-Steam's CEG checksums it, and a 6-byte patch there made the game quit itself ~30 s after launch.
+build, an unknown exe), that part logs why in the events log and stays off.
+
+Steam's CEG checksums about 80% of the exe's code in 284 loops; `probe/cegall.py` lists every range.
+None of the import table or `.data` is covered, so the hooks and data writes are outside every
+check. The game's main loop is never patched: a 6-byte patch there made the game quit itself ~30 s
+after launch. New code changes go outside every checked range, as the terrain and fog changes do.
+The command stream's changes (since 1.0.0) and most of the texture table's predate that rule and lie
+inside checked ranges; the game starts and plays normally with them, so they are kept on that
+evidence ([details](RESEARCH-NOTES.md#first-version-the-pool-setup-patched-and-steams-ceg)).
 
 ## The main crash: render command stream overflow
 
@@ -221,6 +243,22 @@ heap's calls from mimalloc and pass any other heap through. An 8-byte header kee
 size, so the game's own Lua byte counter stays exact. In game the Windows Lua heap went from 193 to
 20 MB.
 
+Those 20 MB are room the exe's `HeapCreate(0, 20 MB, 0)` commits up front, which nothing uses once
+the objects are in mimalloc (read in game: the heap 100% free). The exe calls `HeapCreate` once, for
+this heap, so its `HeapCreate` import also goes to a wrapper that makes a growable heap with nothing
+up front; it still grows if a block ever falls back to it.
+
+## SQLite heap on mimalloc
+
+`probe/luaheap.c` (`DbHeapMimalloc`). The game database DLL gives SQLite its own memory methods,
+which keep every SQLite block in a Windows heap of its own. That heap keeps its load-time peak:
+loading a large mod set peaks SQLite at about 78 MB and leaves about 14 MB live, but the heap still
+holds 94 MB. After checking the DLL's SQLite memory methods byte for byte, the DLL's four import
+slots for that heap go to the same wrappers as the Lua heap's, and its one `HeapCreate` call (5 MB
+up front) makes a growable heap with nothing up front. In one test on a late Huge save, free
+address space at 10 minutes was 74 MB higher, with no change in loading time. The database DLL is
+the same for all three exes.
+
 ## Map detail grids
 
 `probe/mapgrid.c`. At startup the exe reserves two tiled grids for the largest map it supports
@@ -229,6 +267,62 @@ hold that reserve with no tiles for 20 s (the main menu), the sampler empties th
 (capacity first, with compare-exchanges, so a load starting then reserves anew) and frees the
 blocks with the exe's own aligned delete. Data writes only. About 99 MB is saved on a 97 × 66 Huge
 map.
+
+## Intro video player
+
+`probe/intro.c`, on by default (`SkipIntroPlayer=2`). At startup the exe plays the opening movie
+through DirectShow: its player's Play (`exe+0x21a340`) builds a filter graph
+(`CoCreateInstance(CLSID_FilterGraph)` at `exe+0x21a3f4`) with the VMR-7 renderer, which is
+DirectDraw 7. On Windows 10 and 11 DirectDraw runs on the graphics card's Direct3D 9 driver, so
+DirectShow, the Windows Media decoders, DirectDraw, Direct3D 7 and the Direct3D 9 driver (NVIDIA's
+`nvd3dum.dll` is a 65 MB image) come in with the movie and stay loaded, with a driver thread, after
+the player is released: about 75 MB of address space, read from the loader's own load times. The
+game's **Skip intro video** option doesn't avoid it: the game still plays the first 8.5 seconds
+(the logos) and then stops the movie.
+
+The exe's `CoCreateInstance` import refuses that one call (`CLSID_FilterGraph` from the Play site)
+with `REGDB_E_CLASSNOTREG`, as on a PC without DirectShow. Play then returns at once with its
+finished flag set, the player's IsDone is true at the first check, and the owner calls Stop as
+usual. The one thing that early return skips and Stop undoes is a `ShowCursor(FALSE)`, so the probe
+makes that call itself and the cursor's display count stays balanced. No game code is changed.
+`SkipIntroPlayer=1` refuses the call only while the game's **Skip intro video** is on, for players
+who want the movie. All three exes have the same player; the DirectX 9 exe loads the Direct3D 9
+driver for its renderer anyway, so there it saves DirectShow, DirectDraw and the decoders only.
+
+## Fog particle pools
+
+`probe/fluidpool.c`, on by default (`FluidPools=1`), DirectX 11 only. The fluid fog of war is a
+particle simulation on a grid of cells. At startup (`exe+0x28f780`) its object gets one particle
+pool per job thread (`MaxSimultaneousThreads`): 196,608 particles of 128 bytes, 24 MB each. The
+particles live in the grid; a pool only carries them through one step. Each update runs 3 substeps
+over the cells in view plus a margin; a substep zeroes the pools' counts, runs the step jobs, each
+of which writes at most 4 particles per block of particles into the pool of the thread it runs on,
+and merges the pools back into the grid. Nothing in the game checks a pool's capacity. On a late
+Huge save with 4 threads the largest step needed at most 10,660 particles and the busiest pool held
+8,731. Loading a map is the other writer: it seeds every particle of the map into pool 0 at once
+(66,788 on a map of 6,790 tiles, about 10 a plot), so a map with more than 196,608 would write past
+it.
+
+The step and the job are in code Steam's CEG checksums, so they stay as they are. Two places
+outside every checked range change:
+
+- **The step launch call** (`exe+0x109c5d`) goes to a stub that counts the blocks in the step's
+  range and makes every pool hold 4 × that before the jobs run (the counts were just zeroed and no
+  job is running, so a pool can be swapped for a new block without copying). A pool is the game's
+  own block until the first step, then one of ours: the need + 25% + 4,096 particles, in whole MB,
+  at least 1 MB. It grows at once when a step needs more, and shrinks to what the last 30 s needed
+  when it holds more than twice that.
+- **The seeding's first instruction** (`exe+0x17eeb0`, `mov eax,[ecx+440h]`) calls a stub that
+  grows pool 0 (copying what's in it) before a particle would go past its end, so a map of any size
+  fits.
+
+Blocks come from the exe's `malloc` import and old ones go to the game's own delete, as the game's
+pools do. The particles and what the fog does with them are unchanged; only where the pools are
+changes. In a 32-minute test on a late Huge save with 4 threads the pools held 8 MB instead of
+96 MB, free address space at 10 minutes was 58 MB higher, and the fog looked the same.
+`fluidpooltest` runs the game's own seeding function against pools that end at no-access pages.
+The DirectX 9 and tablet exes have the same fog code, but there one or both of the two places lie
+in checked code, so the part stays off ([Other exes](#other-exes-directx-9-and-tablet)).
 
 ## Faster AI turns and fewer hitches
 
@@ -316,6 +410,16 @@ The game code the fix relies on is the same in all three, with these exceptions:
 - **DirectX 9:** the third command appender has no list, the exe's aligned delete has
   `FSBADeallocate` inlined, and the UI queue's call site tests the mode pointer with
   `test eax,eax` instead of `cmp eax,ebx`.
+- **DirectX 9:** the exe renders with Direct3D 9, so its driver is loaded anyway, and skipping the
+  intro video player keeps out only DirectShow, DirectDraw and the decoders.
+
+Three parts are DirectX 11 only:
+
+- **Texture handle table and terrain base textures:** mapped only for the DX11 exe so far, so the
+  DirectX 9 and tablet exes keep the game's 12,288 textures and 6,144 terrain base textures.
+- **Fog particle pools:** the other two exes have the same fog code, but there one or both of the
+  places it changes lie in CEG-checked code (tablet: the seeding; DirectX 9: the seeding and the
+  step launch call), so it stays off.
 
 ## Known limits
 
@@ -376,5 +480,5 @@ an unknown exe (no Lua lock or listener list) the warning stays in the log.
 Everything used to find the bugs is still in the DLL, off by default: 2-second address-space
 samples, full VA maps, CRT allocation attribution by call stack, a top-down placement test, a
 reservation log with stacks, a CRT heap histogram, a page-protection watchpoint, the GPU mapping
-watch, D3D11 call statistics and the UI handler times. See [Settings](SETTINGS.md#diagnostics-off-by-default)
-and the [developer guide](../probe/README.md).
+watch, D3D11 call statistics, the UI handler times and a log of every sound the game starts. See
+[Settings](SETTINGS.md#diagnostics-off-by-default) and the [developer guide](../probe/README.md).
