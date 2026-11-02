@@ -42,6 +42,21 @@ To check that it works: after you start the game, the game folder has a new fold
 "Civ V Crash Patch 1.3.0".
 
 
+GAME SETTINGS FOR BIG GAMES
+---------------------------
+The fix works with the game's settings as they are, but a few of them matter in big games:
+
+  - Play in DirectX 11. DirectX 9 keeps a second copy of the game's textures and models in
+    memory (about 500 MB more on a Huge late-game save), and the texture fixes are
+    DirectX 11 only.
+  - Keep GPU Texture Decode on (Options > Video Options; on by default). With it off, the
+    game keeps every leader's textures in its own memory instead of on the graphics card:
+    about 150 MB in a game with 17 leaders.
+  - With Vox Populi, turn on its quick animations: about 15 seconds off each late-game AI
+    turn in testing (how: see the tips link at the end).
+  - Don't set FluidFOW = 1 in config.ini to save memory. It breaks the map's terrain.
+
+
 UPDATE
 ------
 Close the game and copy the new msimg32.dll over the old one.

@@ -15,7 +15,8 @@ or mods, and it works with or without mods.
 > [report how it goes](https://github.com/PureXYZ/civ5-crash-patch/issues), good or bad.
 
 **Contents:** [Why big games crash](#why-big-games-crash) ·
-[What it fixes](#what-it-fixes) · [Install](#install) · [Questions](#questions) ·
+[What it fixes](#what-it-fixes) · [Install](#install) ·
+[Game settings for big games](#game-settings-for-big-games) · [Questions](#questions) ·
 [Documentation](#documentation) · [Build from source](#build-from-source)
 
 ---
@@ -93,6 +94,24 @@ DLL yourself.)
 
 ---
 
+## Game settings for big games
+
+The fix works with the game's settings as they are, but a few of them matter in big games:
+
+- **Play in DirectX 11.** DirectX 9 keeps a second copy of the game's textures and models in
+  memory (about 500 MB more on a Huge late-game save), and the texture fixes are DirectX 11 only.
+- **Keep GPU Texture Decode on** (Options → Video Options; on by default). With it off, the game
+  keeps every leader's textures in its own memory instead of on the graphics card: about 150 MB in
+  a game with 17 leaders. Older advice turned it off against black icons; the fix's bigger texture
+  table makes that unnecessary ([details](docs/TROUBLESHOOTING.md#keep-gpu-texture-decode-on)).
+- **With Vox Populi, turn on its quick animations.** It took about 15 seconds off each late-game AI
+  turn in testing ([how](docs/TROUBLESHOOTING.md#ai-turns-are-slow)).
+- **Don't set `FluidFOW = 1`** in `config.ini` to save memory. It breaks the map's terrain.
+
+More in [Troubleshooting and tips](docs/TROUBLESHOOTING.md).
+
+---
+
 ## Questions
 
 **Is it safe?** The full source code is in this repository. The DLL on the Releases page is
@@ -121,9 +140,10 @@ as it would without that fix.
 **The game still crashed.** Please report it: see
 [Reporting a crash](docs/TROUBLESHOOTING.md#reporting-a-crash) for the two files to attach.
 
-**Anything else I can do for big games?** Yes: [Troubleshooting and tips](docs/TROUBLESHOOTING.md)
-covers slow AI turns with Vox Populi, grey tiles when you scroll far, very long sessions, and
-settings to avoid.
+**Anything else I can do for big games?** Yes: start with
+[Game settings for big games](#game-settings-for-big-games).
+[Troubleshooting and tips](docs/TROUBLESHOOTING.md) covers slow AI turns with Vox Populi, grey
+tiles when you scroll far, very long sessions, and settings to avoid.
 
 ---
 
