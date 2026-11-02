@@ -56,9 +56,10 @@ Most tests are named `CivilizationV_*.exe` so the probe activates inside them. T
 | `msgqueuetest` | The event-queue spill against a stand-in queue, posting from three threads. |
 | `uiqueuetest` | Handler thunks and merged records against a stand-in exe image. |
 | `luaheaptest` | The Lua heap wrappers, 4 threads. |
-| `texhandlestest` | The game's texture handle pool code, grown to 16,384 handles, in the installed DX11 exe mapped as an image: every handle, release and reuse across the old limit, the record getters. Skipped without the game. |
+| `texhandlestest` | The game's texture handle pool code, grown to 16,384 and to 32,768 handles, in the installed DX11 exe mapped as an image: every handle, release and reuse across the old limit, the record getters. Skipped without the game. |
+| `terraintest` | `TerrainBaseSlots`' three changed instructions in the installed DX11 exe mapped as an image, and its two stubs on a stand-in terrain object with a stand-in texture maker. Skipped without the game. |
 
-The last four link their module directly and need no ini.
+The last five link their module directly and need no ini.
 
 **Self-checking, not in CI:**
 
@@ -103,6 +104,7 @@ build/CivilizationV_probetest.exe "C:\Program Files (x86)\Steam\steamapps\common
 | `mapgrid.c` | Gives back the map detail grids' startup reserve before a map loads | on (`MapGridReserve=1`) |
 | **Graphics** | | |
 | `texhandles.c` | Room for more than the game's 12,288 textures | on (`TextureHandles=16384`) |
+| `terrain.c` | More terrain base textures, made at the first map load, so a big map stays textured | off (`TerrainBaseSlots=0`) |
 | **AI turns** | | |
 | `coretick.c` | How often the game core gets an update | on (`GameCoreIntervalMs=10`) |
 | `smallblock.c` | The exe's small-block allocator off once its 32 MB region is full | on (`SmallBlockFallback=1`) |
@@ -190,6 +192,7 @@ Python).
 | `resdiff.py <reserves csv> [--from S] [--to S] [--at S] [--frames N]` | Regions reserved in a time window that are still held, grouped by the first non-system frames. |
 | `resspikes.py <reserves csv> [--min-kb N] [--max-s S] [--from S] [--frames N] [--placed]` | Regions released again within a few seconds, for brief free-space dips (`--placed`: only those reserved at a chosen address). |
 | `portmap.py <DX11 exe> <other exe> [--objdump PATH] [--only NAMES] [--extra RVAS]` | Finds the DX11 addresses of `exes.c` in another build of the exe: code by the DX11 instructions around it (relocated dwords and branch displacements masked, decoded with LLVM-MinGW's `llvm-objdump`), data by the instructions that reference it. Prints how each was found; a few need checking by hand (see `exes.c`). |
+| `cegall.py <exe> [0xRVA[:len] ...] [--list]` | The code ranges Steam's CEG checksums (the `mov eax, fn; call eax; ret` checks), and whether the given places are inside one. Run it on any new code change: one inside exe+0x2d00f0's ranges crashed map loads. |
 
 ## Diagnostic modes
 

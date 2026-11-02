@@ -49,7 +49,8 @@ In the order they happened:
    [Lua heap on mimalloc](#lua-heap-on-mimalloc-works-session-20261030_113554-144-min-clean-with-map-grid-v3) ·
    [Conclusion on the GPU regions](#conclusion-on-the-gpu-driver-regions-2026-10-30)
 9. **Grey terrain tiles.**
-   [Page-in rate and texture pool](#grey-tiles-after-scrolling-far-2026-10-30-terrain-page-in-and-base-texture-pool)
+   [Page-in rate and texture pool](#grey-tiles-after-scrolling-far-2026-10-30-terrain-page-in-and-base-texture-pool) ·
+   [The whole map in the pool, and Steam's CEG](#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01)
 10. **The DirectX 9 and tablet exes.**
    [Porting](#porting-to-the-directx-9-and-tablet-exes-2026-10-30)
 
@@ -1887,7 +1888,8 @@ analysis plus live reads with `cdbX86 -pv` of session 20261030_135935).
   (`TerrainBaseSlots` gone; the glitching DLL kept as `msimg32.terrain-glitch-20261030.dll`).
 - Conclusion: with this map size some grey after long scrolls is the game's design limit (two
   hard caps: 8,096 base slots in the terrain object, 12,288 texture handles). What helps is the
-  page-in rate (8 / 8).
+  page-in rate (8 / 8). (Both caps were lifted on 2026-11-01: see
+  [the second try](#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01).)
 - Tried: the rate past the settings' cap. The update (exe+0x3ba820) gathers up to `Still`
   candidates from priority-sorted lists (qsort, comparator exe+0x1e7010: state +0x314, +0x310,
   +0x1bc, then float +0x1a4 descending) and renders at most 16 (immediate at exe+0x3babe0). The
@@ -2025,7 +2027,7 @@ The fix (`TextureHandles=N`, texhandles.c): the records move to a block of our o
 in place into their old space (refcounts N entries; +0xc044..+0x32088 move by 4 x (N - 0x3000),
 +0x32088..+0x328c0 by 16 x), and every one of the 102 references and 45 operands is rewritten
 after all were checked. The old records' space past the grown pool is set to PAGE_NOACCESS. N is
-capped at 16,384 (14 bits, like 0x3000). Cost: N x 920 bytes of address space (14.4 MB at 16,384);
+capped at 16,384 (14 bits, like 0x3000; raised to 32,768 in the next section). Cost: N x 920 bytes of address space (14.4 MB at 16,384);
 the old records' 11 MB stay in the image. `texhandlestest` maps the installed exe, binds the few
 imports the pool code calls, sends the FSBA allocator to `_aligned_malloc`, applies the change and
 drives the game's own constructor, Alloc (all 16,382 handles, then 0), Release into one queue
@@ -2041,3 +2043,103 @@ the next minutes, and every icon looked right. So with these settings the game's
 too small at load, which makes the October "black squares with GPU texture decode" most likely
 this table too (turning those two off lowers the number of textures) rather than a driver bug.
 The option is on by default since.
+
+## Grey tiles, second try: the whole map in the pool (2026-11-01)
+
+With the texture table able to grow (previous section), the terrain base texture pool could be
+raised again. Live reads of session 20261101_215143 (Sapiens + Gaia, Huge, TerrainDetailLevel 3,
+the turn-174 save) and the exe:
+
+- **The map.** 10,752 terrain tiles. Tile +0x328 is a height class set at map load
+  (exe+0x321653: 3, or 1 / 2 when the tile's highest point is under one of two constants): 2,455
+  tiles are class 1, deep water. The update's view test skips classes 1 and 2, and class 1 never
+  gets base textures, so 8,297 tiles can need them.
+- **Tile states.** +0x310 is the texture state: 0 no base textures; 1 base textures (still valid)
+  but no mesh or detail textures; 3 built at base resolution; 4 / 5 with a higher-resolution
+  composite. +0x314 is the work asked for (3 build, 2 upgrade, 1 pre-render, 5 build issued).
+- **Leaving the view.** The off-screen pass (exe+0x174f40, every frame, over the off-screen tiles
+  that hold something, sorted with exe+0x3a7060) turns 3 into 1 (exe+0x2e340 releases the detail
+  textures and the mesh but keeps +0x198 / +0x19c) and 5 into 4; then, while the base free list
+  holds fewer than 8, tiles in state 1 from the end of the list give their base textures back
+  (exe+0x85670(1, 1, 1)) and become 0.
+- **Coming into view.** A state-0 tile takes two base textures (exe+0x316010), taking them from up
+  to 16 off-screen tiles per try when none are free, and waits for the gather
+  (TerrainPageinSpeedStill, 8) and at most 16 builds a frame (exe+0x324600). A state-1 tile is
+  rebuilt without counting against that limit (exe+0x3bae69).
+- **Pre-render.** In a frame where nothing was built, the update pre-renders one tile from its list
+  of class 2 and 3 tiles (manager +0x1ae8, cursor +0x2328 of +0x2324, exe+0x3bad60), so after a
+  load the pool fills by itself, and the tile stays in state 1.
+- **Live:** 3,073 tiles had base textures (29%), 2,460 of them off screen in state 1, the free
+  list at 16.
+
+A recording while the user scrolled (scrollmon.py: every 50 ms, the tiles in view 0's list,
+manager +0x1af0 / +0x2334, by state; one process, read-only): after a long scroll 480-600 tiles in
+view, nearly all in state 0, filled at about 8 a frame, about 0.9 s for a screen; tiles still in
+state 1 were back within 0.05-0.1 s. 115 of 317 samples had untextured tiles in view, at most 463,
+4.2 s with more than 50.
+
+**Cost per texture.** A 32-bit D3D11 test program on this PC (RTX 5080, texva.c): 15,000 BC1
+256 x 256 textures with 6 mips (DEFAULT usage) took 75 MB of address space, 91 MB with a shader view
+each, 123 MB when filled with UpdateSubresource. Each also takes a 920-byte handle record.
+
+**Texture handles past 16,384.** None of the 124 relocated instructions that index the refcounts,
+items or records has a mask, shift or sign extension in the 8 instructions before it, and the bind
+lists (exe+0x4bd160) read handles with movzx. `TextureHandles` now goes up to 32,768;
+`texhandlestest` drives the game's pool code at 16,384 and at 32,768.
+
+### First version: the pool setup patched, and Steam's CEG
+
+The pool init's count read (exe+0x2b8656, `mov edx,[count]`) called a stub returning the larger of
+the game's count and N, and its array (exe+0x2b87c9), the hand-over's (exe+0x1bd086) and the
+release's (exe+0x2ccbfc) became an array of ours. Loading the save crashed (session
+20261101_224159, at 131 s): three job threads faulted writing the same page (exe+0x112b88 / 8a / 8d,
+the three stores of one 12-byte entry, target 0xAB289000), then the main thread faulted in the CRT
+heap. That job (exe+0x208270) fills a per-thread grid of 12-byte entries, 64 x 64 at most
+(vector exe+0x9165c8, one 0xc008-byte element per job thread, sized at exe+0x25278), with N x N
+entries, N = [exe+0x799474]. N is set at map load from exe+0x2d00f0, a `mov eax, fn; call eax; ret`
+stub whose function (exe+0x311cd0) CRCs 83 code ranges listed in tables (exe+0x5e5240 and three
+more) and ends in `not eax`. That is Steam's CEG, and two of its ranges (exe+0x2b7000..0x2b9800)
+cover the pool init. With the init patched the CRC changes, N comes out far past 64, and every job
+thread runs past its element; intact, N is 64 (read live in the second version's session). There
+was no crash report from CEG and no quit.
+
+The exe has 26 such stubs (`probe/cegall.py` decodes them all: 2,450 ranges). The main-loop site
+whose patch made the game quit on 2026-10-28 (exe+0x3258b3) is in three of them. The probe's
+existing changes touch bytes in other checks' ranges with no visible effect (167 of the places in
+exes.c and texhandles' references are in exe+0x2be0c0's, among them texhandles' rewritten
+references and cmdstream's changed code at exe+0x4ce1e8), so what a check's result feeds varies;
+none was in exe+0x2d00f0's. Lesson: run cegall.py on any new code change and keep it outside every
+checked range.
+
+### Second version (terrain.c)
+
+The init and its call (exe+0x76967, also checked) are left alone. The hand-over's count read
+(exe+0x1bd079) calls a stub that, at the first map load, copies the game's 6,144 handles into our
+array and makes the rest with the init's own calls: the description constructor (exe+0x4c8fa0,
+format 0x47 BC1, the base resolution and its mips, flags 0x80), the create (exe+0x4c6450 on the
+texture manager [exe+0x2c10570]) and the destructor (exe+0x4c9470), found through the init's own
+call instructions. It stores the total in the object's count and returns it. The hand-over's array
+lea becomes `mov edx, <array>`, and the release's lea calls a stub that returns our array once
+(and the object's own when no map was loaded). None of the three places is in a checked range.
+`terraintest` checks the changed instructions in a mapped exe and drives both stubs on a stand-in
+object (copy, make, total, second hand-over, release twice, a new pool, a short maker, base
+textures off), with the other registers checked.
+
+In game (session 20261101_225853, TerrainBaseSlots=16700, the texture table at 16,384 + 10,556 =
+26,940):
+
+| | Game's pool (215143) | 16,700 slots (225853) |
+|---|---|---|
+| Tiles with base textures (of 8,297 not deep water) | 3,073 | 8,010 a few minutes after the load, 8,297 at 10 min |
+| Texture handles in use at 10 min | 13,012 | 23,590 |
+| Samples with an untextured tile in view while scrolling | 115 of 317 | 0 of 334 (246 with the camera moving) |
+| Most untextured tiles in view | 463 | 0 |
+| Address space free at 10 min | 589 MB | 480 MB |
+| Private commit at 10 min | 2,609 MB | 2,683 MB |
+
+The extra textures were made at 132.9 s, between the load's two 41 s freezes, which were as long
+as before. While scrolling, tiles in state 1 still came back in 44 short bursts (at most 72 tiles,
+0.06 s median, 0.26 s longest), and the user saw no grey. The cost, about 110 MB of address space
+(~10 KB per slot past 6,144, more than the test program's 7 KB), is why `TerrainBaseSlots` stays
+off by default; the 10-minute report suggests the number for the map
+(`terrain: TerrainBaseSlots=… would hold every tile of this map`, two per tile plus 64).

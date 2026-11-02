@@ -47,6 +47,7 @@ exe they log why and stay off. `D3DStats` needs a Direct3D 11 exe (DX11 or table
 | Write detailed memory logs for a bug report | `Telemetry=1` |
 | Stop the log from recording freezes | `HangSeconds=0` |
 | Give back the 14 MB the bigger texture table takes | `TextureHandles=0` |
+| Stop grey terrain when scrolling on a big map | `TerrainBaseSlots=` the number the log suggests ([below](#more-textures-on-by-default)) |
 
 ---
 
@@ -263,7 +264,8 @@ data is wrapped).
 
 | Key | Default | What it does |
 |---|---|---|
-| `TextureHandles` | 16384 | How many textures the game can hold at once, at most 16384. 0 = the game's 12,288. |
+| `TextureHandles` | 16384 | How many textures the game can hold at once, at most 32768. 0 = the game's 12,288. |
+| `TerrainBaseSlots` | 0 | How many terrain base textures the game gets (two per map tile), at most 22528. 0 = the game's 6,144 (4,096 below the highest terrain detail). Off by default. |
 
 **`TextureHandles`.** Every texture the game makes (icons, UI atlases, fonts, terrain tiles,
 leader scenes) takes one of 12,288 handles, and the game almost never gives one back: it keeps
@@ -276,7 +278,29 @@ is already past the game's limit, and every icon was right. The fix moves the ga
 records (920 bytes each) to a block of their own, 14.4 MB of address space at 16384, and grows the
 table in place, after checking the game's code byte for byte. The `texhandles:` line of each
 report shows the handles in use, and the log says when the table passes 90% and when it is full.
-DirectX 11 exe only for now.
+DirectX 11 exe only for now. `TerrainBaseSlots` adds its slots past 6,144 to this number by itself.
+
+**`TerrainBaseSlots`.** Every land or shallow-water tile of the map needs two base textures before
+it is drawn, and the game has 6,144 of them: 3,072 tiles. That is under half of a Huge map (8,297
+of the 10,752 tiles of a Sapiens Huge map aren't deep water). Tiles you scroll away from keep
+their textures until the game needs them elsewhere, so when you scroll far, the tiles there are
+grey until the game rebuilds them, 8 per frame: about a second for a screen, longer during AI
+turns. With `TerrainBaseSlots=N` the game gets N base textures. When N covers the map (two per
+tile that isn't deep water), the game's own background pre-render gives every tile its textures a
+few minutes after a load, and scrolling never shows grey. The `terrain:` line of each 10-minute
+report says how many tiles have textures, and while the pool is too small it also says
+`TerrainBaseSlots=… would hold every tile of this map`. On that Huge map, 16700 took the textured
+tiles from 29% to 99%, and no untextured tile came into view while scrolling across the map.
+
+The cost, per slot past 6,144: about 10 KB of address space (the Direct3D runtime and driver's
+share of each texture, plus its handle record; with 16700, 480 MB were free at 10 minutes instead
+of 589 MB on the same save), and 43 KB of video memory (730 MB at 16,700). Late in a long game on
+a Huge map that address space can matter: watch
+the `memory (10 min)` lines, and lower the number if they drop toward the 200 MB warning. The
+extra textures are made with the game's own texture calls when the first map loads; the game's
+texture pool setup itself isn't changed, because Steam's copy protection checksums that code
+(changing it crashed the game while loading a save). DirectX 11 exe only; it needs
+`TextureHandles` on.
 
 ---
 

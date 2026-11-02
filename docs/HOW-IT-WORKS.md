@@ -17,6 +17,7 @@ All addresses are RVAs in the final Steam `CivilizationV_DX11.exe` (1.0.3.279, P
   [Lua database lookups](#huge-map-memory-spike-lua-database-lookups),
   [Lua heap](#lua-heap-on-mimalloc), [map detail grids](#map-detail-grids)
 - [Faster AI turns and fewer hitches](#faster-ai-turns-and-fewer-hitches)
+- Textures: [texture handle table](#texture-handle-table), [terrain base textures](#terrain-base-textures)
 - [Other exes: DirectX 9 and tablet](#other-exes-directx-9-and-tablet)
 - [Known limits](#known-limits)
 - [Diagnostics](#diagnostics)
@@ -42,6 +43,8 @@ turns go further.
 | Map grid reserve | Gives back the 178 MB of map detail grids reserved at startup for the largest map. | ✔ | [`mapgrid.c`](../probe/mapgrid.c) |
 | Faster AI turns | Core update every 10 ms instead of 100, the exe's full small-block allocator switched off, up to 3 extra paced passes per frame over the core-to-UI queue. | ✔ | [`coretick.c`](../probe/coretick.c), [`smallblock.c`](../probe/smallblock.c), [`uiqueue.c`](../probe/uiqueue.c) |
 | Fewer hitches | Data-dirty records within 250 ms and `TeamMet` records within 30 s of the last run are merged into one late run. | ✔ | [`uiqueue.c`](../probe/uiqueue.c) |
+| Texture handles | The game's table of 12,288 textures grows to 16,384 (up to 32,768): the per-texture records move out and every reference is rewritten. | ✔ | [`texhandles.c`](../probe/texhandles.c) |
+| Terrain base textures (opt-in) | Up to 22,528 terrain base textures instead of 6,144, made at the first map load, so the whole map stays textured. | ✔ | [`terrain.c`](../probe/terrain.c) |
 
 ## Loading and safety checks
 
@@ -259,9 +262,27 @@ and everything after them moves up. The 102 absolute references to the moved par
 through the exe's base relocations (all in the texture code), and the pool's own functions get
 their 42 offsets, the cap and two memset sizes rewritten. Everything is checked before anything
 changes, in DllMain, before the exe's static constructors build the pool. The old records' space
-past the grown pool is made inaccessible, so a missed reference would fault at once.
-`texhandlestest` runs the game's own pool code, grown to 16,384 handles, in a mapped copy of the
-exe.
+past the grown pool is made inaccessible, so a missed reference would fault at once. N goes up to
+32,768: handles are stored as 16-bit values read zero-extended, and none of the 124 instructions
+that index the table masks or sign-extends them. `texhandlestest` runs the game's own pool code,
+grown to 16,384 and to 32,768 handles, in a mapped copy of the exe.
+
+## Terrain base textures
+
+`probe/terrain.c`, off by default (`TerrainBaseSlots=N`). Each map tile that isn't deep water needs
+two base textures (BC1, 256 x 256) before it is drawn. The game makes a pool of 6,144 once at
+startup, in an array inside its static terrain object, and copies them into each map's tile
+manager. Off-screen tiles keep theirs (and come back within a frame or two) until visible tiles
+need them; a tile without them is grey until it is rebuilt, 8 a frame. With N slots the first map
+load makes N - 6,144 more: the hand-over's read of the pool's count calls a stub that copies the
+game's handles into an array of ours, makes the rest with the same description and create calls
+the pool's own setup uses (found from that code's call instructions), and stores the total in the
+object. The hand-over's array becomes ours, and the release at exit walks ours once. The pool setup
+itself is left alone: it is inside code that one of Steam's 26 copy-protection checksums covers,
+and that checksum's result sizes per-thread arrays at map load. `texhandles.c` grows the texture
+table by the same N - 6,144. When N covers the map, the game's own idle pre-render textures every
+tile a few minutes after a load. `terraintest` checks the three changed instructions in a mapped
+copy of the exe and drives both stubs on a stand-in terrain object.
 
 ## Other exes: DirectX 9 and tablet
 
@@ -299,11 +320,10 @@ The game code the fix relies on is the same in all three, with these exceptions:
   still growing. They come from the game's per-frame buffer uploads. Trimming the device, splitting
   uploads, GPU-only buffers and DXVK were all tried; none helped (see the
   [research notes](RESEARCH-NOTES.md#conclusion-on-the-gpu-driver-regions-2026-10-30)).
-- **Grey terrain tiles after long scrolls on Huge maps.** The game textures under half of such a
-  map at once (a pool of 6,144 terrain base textures, at most 8,096 in its structure). Raising the
-  pool broke textures (it ran out the 12,288 texture handles, before `TextureHandles` existed), and
-  raising the page-in rate past the game's 8 stranded tiles
-  ([details](RESEARCH-NOTES.md#grey-tiles-after-scrolling-far-2026-10-30-terrain-page-in-and-base-texture-pool)).
+- **Grey terrain tiles after long scrolls on Huge maps** are fixed only when you opt in with
+  `TerrainBaseSlots`, because the textures that keep the whole map drawn cost address space (about
+  110 MB on a Huge map). Raising the page-in rate past the game's 8 a frame stranded tiles
+  ([details](RESEARCH-NOTES.md#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01)).
 - **Black UI squares** on DX11 with EUI/VP: most likely the full texture table, which GPU texture
   decode and the HD strategic view fill sooner (a big mod set loaded with 12,991 textures with
   both on). `TextureHandles` gives 4,096 more; if a game needs more than that, terrain detail one

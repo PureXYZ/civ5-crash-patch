@@ -16,7 +16,7 @@
 // icon atlas it has loaded), so a big mod set on a Huge map fills the table: 12,287 at turn ~132
 // (Sapiens + Gaia, TerrainDetailLevel 3, where terrain alone takes ~6,480 handles).
 //
-// With TextureHandles=N (up to 16,384) the table holds N handles:
+// With TextureHandles=N (up to 32,768) the table holds N handles:
 // - The records move to a block of our own (N x 0x398 bytes, 14.4 MB at 16,384), and the pool
 //   grows in place into the space they leave. The refcounts stay at +0x44 and get N entries;
 //   what follows them moves up by 4 x (N - 0x3000) (frame index, release queues, items) or
@@ -31,11 +31,15 @@
 // - The old records' space past the grown pool is made inaccessible, so a reference this missed
 //   faults at once (the exception is logged with its address) instead of using stale memory.
 // It all happens in DllMain, before the exe's static constructors build the pool; if the pool is
-// already built, or any value or count differs, nothing is changed. 16,384 is the most: handles
-// are stored as 16-bit values (the bind lists, exe+0x4bd160), and up to 0x3fff they also stay in
-// the 14 bits the game's own 0x3000 needs, in case anything packs them. DX11 only so far. In game
-// (Sapiens + Gaia, Huge, TerrainDetailLevel 3, GPU texture decode, HD strategic view) a save
-// loaded with 12,991 handles, 703 past the game's table, and the icons were right.
+// already built, or any value or count differs, nothing is changed. 32,768 is the most: handles
+// are stored as 16-bit values (the bind lists, exe+0x4bd160, read them zero-extended), and none of
+// the 124 instructions that index the refcounts, items or records masks, shifts or sign-extends
+// the handle in the 8 instructions before it (checked 2026-11-01), so below 0x8000 they stay
+// clear of sign extension and of 0xffff. DX11 only so far. In game (Sapiens + Gaia, Huge,
+// TerrainDetailLevel 3, GPU texture decode, HD strategic view) a save loaded with 12,991 handles,
+// 703 past the game's table, and the icons were right. TerrainBaseSlots (terrain.c) adds its
+// slots past the game's 6,144 to the count, since each is a texture; with 16,700 slots the same
+// save ran with 23,590 handles in use, terrain and icons right (session 20261101_225853).
 //
 // With or without the option, the sampler logs when the table passes 90% and when it is full, and
 // texhandles_report() logs how many handles are in use.
@@ -46,7 +50,7 @@
 #include "probe.h"
 
 #define OLD_N 0x3000        // the game's handle count
-#define MAX_N 0x4000
+#define MAX_N 0x8000
 #define REC 0x398           // bytes per record
 #define NEXT 0x40           // pool offsets: the next new handle,
 #define REFS_END 0xc044     // the end of the refcounts,
@@ -160,7 +164,7 @@ void texhandles_init(const WCHAR *ini)
 {
     BYTE *exe = (BYTE *)GetModuleHandleW(NULL);
     const GameExe *g = game_exe(exe);
-    DWORD n = GetPrivateProfileIntW(L"probe", L"TextureHandles", MAX_N, ini);
+    DWORD n = GetPrivateProfileIntW(L"probe", L"TextureHandles", 16384, ini), terrain = terrain_extra_handles(ini);
     if (!g || !g->texPool) {
         if (n) log_event("texhandles: not mapped for this exe; the game's 12,288 texture handles");
         return;
@@ -171,6 +175,7 @@ void texhandles_init(const WCHAR *ini)
         log_event("texhandles: TextureHandles=%lu is less than the game's 12,288; left alone", (unsigned long)n);
         return;
     }
+    n += terrain;
     if (n > MAX_N) n = MAX_N;
     const char *why = texhandles_check(exe, g);
     if (!why && (*(volatile DWORD *)g_pool || *(volatile DWORD *)(g_pool + NEXT))) why = "the pool is already built";
@@ -185,10 +190,13 @@ void texhandles_init(const WCHAR *ini)
     }
     g_n = n;
     g_freeCount = moved(FREE_COUNT, n - OLD_N);
-    log_event("texhandles: the texture table holds %lu handles (the game's 12,288); records moved to %p (%.1f MB), "
-              "%lu references and %lu pool offsets changed", (unsigned long)n, (void *)rec, n * (double)REC / 1048576,
+    log_event("texhandles: the texture table holds %lu handles (the game's 12,288%s); records moved to %p (%.1f MB), "
+              "%lu references and %lu pool offsets changed", (unsigned long)n,
+              terrain ? ", more for TerrainBaseSlots" : "", (void *)rec, n * (double)REC / 1048576,
               (unsigned long)(g->texPoolFixups + g->texRecFixups), (unsigned long)g->texSiteCount);
 }
+
+DWORD texhandles_count(void) { return g_n; }
 
 // Handles handed out and not on the free list (handle 0 included); 0 before the pool is built.
 static DWORD in_use(DWORD *next, DWORD *free)
@@ -197,6 +205,15 @@ static DWORD in_use(DWORD *next, DWORD *free)
     *free = *(volatile DWORD *)(g_pool + g_freeCount);
     if (*next > g_n || *free > *next) return 0;
     return *next - *free;
+}
+
+DWORD texhandles_room(void)
+{
+    if (!g_pool) return 0;
+    DWORD next, free;
+    in_use(&next, &free);
+    if (next > g_n || free > next) return 0;
+    return (next < g_n - 1 ? g_n - 1 - next : 0) + free;  // new handles next..count-2, and the free list
 }
 
 // Sampler thread.
@@ -213,7 +230,7 @@ void texhandles_tick(void)
         g_saidFull = 1;
         log_event("texhandles: the texture table is full (%lu handles): textures made from now on are blank (black or "
                   "magenta icons, \"Error loading font texture\")%s", (unsigned long)g_n,
-                  g_n < MAX_N ? "; TextureHandles=16384 makes room for more" : "");
+                  g_n < MAX_N ? "; a larger TextureHandles (up to 32768) makes room for more" : "");
     }
 }
 

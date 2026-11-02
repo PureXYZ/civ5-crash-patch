@@ -13,8 +13,8 @@ $CC -O2 -DNDEBUG -DMI_STAT=1 -DMI_SKIP_COLLECT_ON_EXIT=1 -DMI_DEFAULT_DISALLOW_A
 MILIBS="-Ithird_party/mimalloc/include -lpsapi -lbcrypt -ladvapi32"
 # Version resource (Properties > Details) for both proxy DLLs.
 i686-w64-mingw32-windres version.rc -O coff -o build/version_res.o
-$CC $CFLAGS -o build/msimg32.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c exes.c build/mimalloc.o build/version_res.o proxy_msimg32.def $MILIBS
-$CC $CFLAGS -DPROXY_VERSION -o build/version.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c exes.c build/mimalloc.o build/version_res.o proxy_version.def $MILIBS
+$CC $CFLAGS -o build/msimg32.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c exes.c build/mimalloc.o build/version_res.o proxy_msimg32.def $MILIBS
+$CC $CFLAGS -DPROXY_VERSION -o build/version.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c exes.c build/mimalloc.o build/version_res.o proxy_version.def $MILIBS
 $CC -O2 -Wall -municode -static -s -Wl,--large-address-aware     -o build/CivilizationV_probetest.exe harness.c -lversion -lmsimg32 -lgdi32
 # Allocation-tracking tests (run with AllocCrt=ucrtbase.dll in civprobe.ini).
 $CC -O2 -fomit-frame-pointer -Wall -static -Wl,--large-address-aware -o build/CivilizationV_alloctest.exe alloctest.c -lmsimg32 -lgdi32
@@ -28,9 +28,12 @@ $CC -O2 -Wall -static -DUIQUEUE_TEST -o build/uiqueuetest.exe uiqueuetest.c uiqu
 # luaheap test: the Lua and SQLite heap wrappers against stand-in heaps, 4 threads (+ the real
 # database DLL's allocator when the game is installed).
 $CC -O2 -Wall -static -DLUAHEAP_TEST -o build/luaheaptest.exe luaheaptest.c luaheap.c exes.c build/mimalloc.o $MILIBS
-# texhandles test: the game's texture handle pool code, grown, in the installed DX11 exe mapped
-# as an image (skipped when the game isn't installed).
-$CC -O2 -Wall -static -o build/texhandlestest.exe texhandlestest.c texhandles.c exes.c
+# texhandles test: the game's texture handle pool code, grown to 16,384 and to 32,768 handles, in
+# the installed DX11 exe mapped as an image (skipped when the game isn't installed).
+$CC -O2 -Wall -static -o build/texhandlestest.exe texhandlestest.c texhandles.c terrain.c exes.c
+# terrain test: TerrainBaseSlots' code changes and count stub in the installed DX11 exe mapped as
+# an image (skipped when the game isn't installed).
+$CC -O2 -Wall -static -o build/terraintest.exe terraintest.c terrain.c exes.c
 # d3dstats test: counts known D3D11 calls through the hot-patched d3d11.dll (needs a D3D11 GPU).
 $CC -O2 -Wall -static -DD3DSTATS_TEST -o build/d3dstatstest.exe d3dstatstest.c d3dstats.c exes.c -ld3d11
 # luagc test: a stand-in database DLL that imports lua_pushcclosure from the game's lua51_Win32.dll.

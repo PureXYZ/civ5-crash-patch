@@ -42,6 +42,12 @@ typedef struct {
     // functions' own offsets and sizes
     DWORD texPool, texRecords, texPoolFixups, texRecFixups, texSiteCount;
     const TexSite *texSites;
+    // terrain.c: the static terrain object, the pool init's call on it, the start of the init's
+    // base texture part (read, never changed: it's checksummed), the hand-over to a map's tile
+    // manager (count read, array lea), the release at exit (array lea), and the tile manager load
+    // and free-count compare the report relies on
+    DWORD terrainObj, terrainPoolCall, terrainInit, terrainHandCount, terrainHandArray, terrainRelease;
+    DWORD terrainMgrLoad, terrainAlloc;
 } GameExe;
 const GameExe *game_exe(const BYTE *exe);  // the table for this image (timestamp and size), or NULL
 const GameExe *game_exe_dx11(void);        // for the tests' stand-in images
@@ -62,6 +68,7 @@ const char *smallblock_check(BYTE *exe, const GameExe *g);
 const char *luaguard_check(BYTE *exe, const GameExe *g);
 const char *d3dstats_check(BYTE *exe, const GameExe *g);
 const char *texhandles_check(BYTE *exe, const GameExe *g);
+const char *terrain_check(BYTE *exe, const GameExe *g);
 
 // alloctrack.c
 void alloc_init(const WCHAR *ini);
@@ -148,9 +155,24 @@ void d3dstats_report(void);
 void texhandles_init(const WCHAR *ini);  // DllMain: before the exe's static constructors
 void texhandles_tick(void);  // sampler thread
 void texhandles_report(void);
+DWORD texhandles_count(void);  // the table's size (12,288 when unchanged)
+DWORD texhandles_room(void);   // how many more handles Alloc can hand out
 // Moves the records to `records` (n x 0x398 bytes, zeroed) and grows the pool to n handles in the
 // image at exe; texhandles_check must have passed. NULL when done, else why nothing changed.
 const char *texhandles_apply(BYTE *exe, const GameExe *g, DWORD n, BYTE *records);
+
+// terrain.c
+#define TERRAIN_MAX_SLOTS 22528  // 32,768 handles less the 10,240 the game's other textures get
+void terrain_init(const WCHAR *ini);  // DllMain, after texhandles_init
+void terrain_report(void);
+DWORD terrain_extra_handles(const WCHAR *ini);  // TerrainBaseSlots past the game's 6,144
+// Sends the hand-over to a map's tile manager to array (slots entries, zeroed), filled at the first
+// hand-over with the game's handles and slots - count more made by makeExtra(out, n) (NULL = the
+// game's own texture calls; it returns how many it made), and the release at exit to the same
+// array; terrain_check must have passed. NULL when done, else why nothing changed.
+const char *terrain_apply(BYTE *exe, const GameExe *g, DWORD slots, DWORD *array, DWORD (*makeExtra)(DWORD *, DWORD));
+void *terrain_handover_stub(void);  // for the test
+void *terrain_release_stub(void);
 
 // msgqueue.c
 void msgqueue_init(const WCHAR *ini);  // DllMain (takes the main thread's id)

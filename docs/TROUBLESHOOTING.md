@@ -88,9 +88,21 @@ fill in slowly, most of all in slow AI-turn frames. To make them fill in faster:
 8 is the most the game accepts. If panning starts to stutter, lower both to 4. Changing the
 graphics quality in the game's options may reset them.
 
-On Huge maps some grey remains after long scrolls. The game keeps terrain textures for under half
-of such a map at once, and that limit can't be raised safely: trying it broke the game's textures
-([details](RESEARCH-NOTES.md#grey-tiles-after-scrolling-far-2026-10-30-terrain-page-in-and-base-texture-pool)).
+On big maps that only shortens the grey. The game keeps terrain textures for at most 3,072 tiles,
+under half of a Huge map, so a part of the map you haven't looked at lately is always rebuilt
+from grey. To keep the whole map textured:
+
+1. Play for 10 minutes, then open the newest `events_….log` in the `civprobe` folder and find
+   the line `terrain: TerrainBaseSlots=… would hold every tile of this map`.
+2. Close the game, add that line (without `terrain: ` and the words after the number) to
+   `civprobe\civprobe.ini`, for example `TerrainBaseSlots=16700`, and start the game again.
+
+A few minutes after loading, every tile has its textures and scrolling shows no grey. The cost is
+address space, the game's scarcest resource: about 10 KB per slot past the game's 6,144 (110 MB
+less free on a Huge save with 16700). If the `memory (10 min)` lines get near the 200 MB warning
+late in a game, use a smaller number: half way still keeps much more of the map textured.
+([Settings](SETTINGS.md#more-textures-on-by-default),
+[details](RESEARCH-NOTES.md#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01).)
 
 ## AI turns are slow
 

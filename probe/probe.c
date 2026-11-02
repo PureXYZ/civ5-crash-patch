@@ -303,12 +303,13 @@ __declspec(dllexport) int CivProbe_CheckExe(const WCHAR *exePath, char *report, 
         {"cmdstream", cmdstream_check}, {"msgqueue", msgqueue_check}, {"uiqueue", uiqueue_check},
         {"uiqueue tables", uiqueue_tables_check}, {"mapgrid", mapgrid_check}, {"luaheap", luaheap_check},
         {"coretick", coretick_check}, {"smallblock", smallblock_check}, {"luaguard", luaguard_check},
-        {"d3dstats", d3dstats_check}, {"texhandles", texhandles_check},
+        {"d3dstats", d3dstats_check}, {"texhandles", texhandles_check}, {"terrain", terrain_check},
     };
     int o = snprintf(report, cap, "%s:", g->name), ok = 1;
     for (size_t i = 0; i < sizeof parts / sizeof parts[0] && o < cap; i++) {
         const char *why = parts[i].check(exe, g);
-        if (why && !(parts[i].check == d3dstats_check && !g->d3dContext) && !(parts[i].check == texhandles_check && !g->texPool))
+        if (why && !(parts[i].check == d3dstats_check && !g->d3dContext) && !(parts[i].check == texhandles_check && !g->texPool) &&
+            !(parts[i].check == terrain_check && !g->terrainObj))
             ok = 0;
         o += snprintf(report + o, cap - o, " %s=%s", parts[i].name, why ? why : "ok");
     }
@@ -934,6 +935,7 @@ static DWORD WINAPI sampler(LPVOID unused)
             msgqueue_report();
             d3dstats_report();
             texhandles_report();
+            terrain_report();
             watch_report();
             cmdstream_report();
         }
@@ -1092,6 +1094,7 @@ static void start_probe(void)
     msgqueue_init(ini);
     d3dstats_init(ini);
     texhandles_init(ini);
+    terrain_init(ini);  // after texhandles_init: the table must have room for the textures
 
     g_overflowReq = CreateEventW(NULL, FALSE, FALSE, NULL);
     g_overflowDone = CreateEventW(NULL, FALSE, FALSE, NULL);
@@ -1133,6 +1136,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         msgqueue_report();
         d3dstats_report();
         texhandles_report();
+        terrain_report();
         watch_report();
         cmdstream_report();
         crtfail_log_last_cxx();

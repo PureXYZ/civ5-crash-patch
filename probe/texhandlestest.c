@@ -1,5 +1,5 @@
-// texhandles test: the game's own texture handle pool code, grown by texhandles_apply, in the
-// installed DX11 exe mapped as an image (imports not bound). The few imports that code calls are
+// texhandles test: the game's own texture handle pool code, grown by texhandles_apply to 16,384 and
+// then 32,768 handles, in the installed DX11 exe mapped as an image (imports not bound). The few imports that code calls are
 // bound to our CRT, and the exe's small-object allocator (FSBA) is sent to _aligned_malloc. Then:
 // the constructor builds the pool, every handle is taken (1..N-2, then 0 when full), 768 handles
 // across the old 0x3000 limit (and the last one) are released into one release queue (past its
@@ -16,8 +16,8 @@
 #include <string.h>
 #include "probe.h"
 
-#define N 0x4000
 #define OLD_N 0x3000
+#define MAX_N 0x8000
 #define REC 0x398
 
 void log_event(const char *fmt, ...)
@@ -30,6 +30,7 @@ void log_event(const char *fmt, ...)
 }
 
 static int g_fail;
+static DWORD N;  // this run's handle count
 #define CHECK(c, ...) do { if (!(c)) { printf("FAIL line %d: ", __LINE__); printf(__VA_ARGS__); printf("\n"); g_fail++; } } while (0)
 
 typedef void *(__thiscall *Ctor_t)(void *pool);
@@ -81,14 +82,18 @@ static int jump(BYTE *exe, DWORD rva, const BYTE *want, size_t len, void *fn)
     return 1;
 }
 
-int main(void)
+// One run on a fresh mapping of the exe: -1 = skipped (no game here), else the failures.
+static int run(DWORD n)
 {
     const WCHAR *path = L"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sid Meier's Civilization V\\CivilizationV_DX11.exe";
     HMODULE m = LoadLibraryExW(path, NULL, DONT_RESOLVE_DLL_REFERENCES);
     if (!m) {
         printf("texhandles test: skipped (game not installed here)\n");
-        return 0;
+        return -1;
     }
+    N = n;
+    g_fail = 0;
+    g_allocs = 0;
     BYTE *exe = (BYTE *)m;
     const GameExe *g = game_exe(exe);
     if (!g || !g->texPool) {
@@ -161,7 +166,8 @@ int main(void)
     CHECK(!bad && !refs[0] && !refs[N - 1], "refcounts: %d not 1", bad);
     CHECK(*(DWORD *)(pool + frame) == 0, "frame index after the refcounts filled");
 
-    static BYTE released[N];
+    static BYTE released[MAX_N];
+    memset(released, 0, sizeof released);
     DWORD count = 0;
     for (h = 0x2e00; h < 0x3100; h++) released[h] = 1;
     released[N - 2] = 1;
@@ -193,7 +199,17 @@ int main(void)
     CHECK(p == trip, "a byte past the grown pool changed (+0x%lx)", (unsigned long)(p - pool));
 
     ((Fn_t)(exe + 0x4c5430))(pool);
-    printf("texhandles test: %d handles, %lu released and taken back, %ld exe allocations: %s\n", N, (unsigned long)count,
-           g_allocs, g_fail ? "FAILED" : "ok");
-    return g_fail ? 1 : 0;
+    printf("texhandles test: %lu handles, %lu released and taken back, %ld exe allocations: %s\n", (unsigned long)N,
+           (unsigned long)count, g_allocs, g_fail ? "FAILED" : "ok");
+    VirtualFree(rec, 0, MEM_RELEASE);
+    FreeLibrary(m);
+    return g_fail;
+}
+
+int main(void)
+{
+    int r = run(0x4000);
+    if (r < 0) return 0;
+    if (r) return 1;
+    return run(MAX_N) ? 1 : 0;
 }
