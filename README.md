@@ -69,11 +69,6 @@ Takes about two minutes.
 That's it. You don't need the settings file in the zip's `optional` folder; the fix works
 without it.
 
-> **Still seeing black squares on icons or city banners?** The fix gives the game room for a
-> third more textures, which is what runs out. If a game needs even more, open
-> **Options → Video Options**, turn off **GPU Texture Decode** and **High Detail Strategic View**,
-> and restart the game ([details](docs/TROUBLESHOOTING.md#black-squares-on-icons-or-city-banners)).
-
 ### Check that it's working
 
 After you start the game, a new folder named `civprobe` appears in the game folder. Open the

@@ -34,10 +34,6 @@ To check that it works: after you start the game, the game folder has a new fold
 "civprobe". The first line of the newest events_....log file in it starts with
 "Civ V Crash Patch 1.2.1".
 
-Still seeing black squares on icons or city banners in DirectX 11? The game ran out of room
-for textures, even with the extra room the fix gives it. In the game, open Options > Video
-Options, turn off "GPU Texture Decode" and "High Detail Strategic View", and restart.
-
 
 UPDATE
 ------
@@ -64,7 +60,7 @@ Please report it: https://github.com/PureXYZ/civ5-crash-patch/issues
 Attachments are public. The events log leaves out your Windows user name, but a .dmp file
 can contain it and other details of your PC. If you'd rather not post it, leave it out.
 
-Tips for big games (slow AI turns, grey tiles, long sessions):
+Tips for big games (slow AI turns, grey tiles, black icons, long sessions):
 https://github.com/PureXYZ/civ5-crash-patch/blob/main/docs/TROUBLESHOOTING.md
 
 

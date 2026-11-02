@@ -69,8 +69,11 @@ Strategic View** and the highest terrain detail fill it sooner. The fix makes ro
 DirectX 11, which was enough for a big mod set on a Huge map with all three on.
 
 If you still see them, the events log in the `civprobe` folder says `the texture table is full`.
-Then open **Options → Video Options** in the game, turn off **GPU Texture Decode** and
-**High Detail Strategic View**, and restart the game.
+Then open **Options → Video Options** in the game and do one of these, then restart the game:
+
+- Lower **Terrain Detail Level** one step from the highest. That alone frees about 2,000
+  textures. (In `GraphicsSettingsDX11.ini` it's `TerrainDetailLevel = 2` instead of 3.)
+- Turn off **GPU Texture Decode** and **High Detail Strategic View**.
 
 ## Grey tiles when you scroll far across the map
 

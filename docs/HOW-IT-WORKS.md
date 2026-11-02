@@ -306,8 +306,8 @@ The game code the fix relies on is the same in all three, with these exceptions:
   ([details](RESEARCH-NOTES.md#grey-tiles-after-scrolling-far-2026-10-30-terrain-page-in-and-base-texture-pool)).
 - **Black UI squares** on DX11 with EUI/VP: most likely the full texture table, which GPU texture
   decode and the HD strategic view fill sooner (a big mod set loaded with 12,991 textures with
-  both on). `TextureHandles` gives 4,096 more; turning those two settings off still helps if a game
-  needs more than that. The DirectX 9 and tablet exes keep the game's 12,288.
+  both on). `TextureHandles` gives 4,096 more; if a game needs more than that, terrain detail one
+  step down (about 2,000 fewer) or those two settings off still help. The DirectX 9 and tablet exes keep the game's 12,288.
 
 ## Diagnostics
 
