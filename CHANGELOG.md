@@ -5,8 +5,8 @@
 ### What's new
 
 To update, close the game and copy the new `msimg32.dll` over the old one. Then check the newest
-log's first line for the new version. These changes are all about the settings file; the fixes
-are the same as in 1.4.0.
+log's first line for the new version. These changes are all about the settings file; apart from
+one small DirectX 9 safety detail (see Details), the fixes are the same as in 1.4.0.
 
 - **The settings file goes next to `msimg32.dll`.** It used to work only in the `civprobe` folder,
   which doesn't exist until the game has started once, and a file anywhere else was ignored
@@ -41,6 +41,9 @@ are the same as in 1.4.0.
   with a timestamp.
 - **Release zip:** `Compress-Archive "$d/*"` packs the folder's files instead of the folder.
 - New self-checking test `settingstest` (9 setups, 30 checks), run in CI.
+- **Command stream, DirectX 9:** a counter on an array the fix didn't allocate (no constructor
+  note, so no slack after it) now stops at the array's own last slot instead of one past it, for
+  example on a larger array that a mod DLL swaps in. `streamtest` covers it.
 
 ## 1.4.0
 

@@ -407,8 +407,9 @@ The game code the fix relies on is the same in all three, with these exceptions:
   created at the same place, with the same sizes (4096 commands, 1024 groups, 1 MB), and nothing
   checks them either. So the spare is plain extra room at the end of each array, every
   constructor allocation is noted with its spare, and the counters and the record allocator stop
-  at what was allocated; they look the note up only once a count reaches the game's own capacity.
-  The stats hook the reset instead of the flip.
+  at what was allocated; they look the note up only once a count reaches the game's last slot. An
+  array without a note has no slack after it (for example a larger array that a mod DLL swaps in),
+  so its counters stop at its own last slot. The stats hook the reset instead of the flip.
 - **DirectX 9:** the third command appender has no list, the exe's aligned delete has
   `FSBADeallocate` inlined, and the UI queue's call site tests the mode pointer with
   `test eax,eax` instead of `cmp eax,ebx`.

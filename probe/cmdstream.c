@@ -158,9 +158,11 @@ static void note_add(void *p, DWORD spare, ULONG_PTR ctorRet)
     InterlockedExchange(&g_grantLock, 0);
 }
 
-static DWORD note_spare(const void *p, ULONG_PTR *ctorRet)
+// The newest note for p: 1 with its spare (and the constructor's return address), or 0.
+static int note_find(const void *p, DWORD *spare, ULONG_PTR *ctorRet)
 {
-    DWORD spare = 0;
+    int found = 0;
+    *spare = 0;
     if (ctorRet) *ctorRet = 0;
     if (!p) return 0;
     while (InterlockedExchange(&g_grantLock, 1)) YieldProcessor();
@@ -168,11 +170,19 @@ static DWORD note_spare(const void *p, ULONG_PTR *ctorRet)
     for (LONG i = 1; i <= n; i++) {
         const Note *t = &g_notes[(g_nNotes - i) % MAX_NOTES];
         if (t->p != p) continue;
-        spare = t->spare;
+        *spare = t->spare;
         if (ctorRet) *ctorRet = t->ctorRet;
+        found = 1;
         break;
     }
     InterlockedExchange(&g_grantLock, 0);
+    return found;
+}
+
+static DWORD note_spare(const void *p, ULONG_PTR *ctorRet)
+{
+    DWORD spare;
+    note_find(p, &spare, ctorRet);
     return spare;
 }
 
@@ -297,7 +307,10 @@ __declspec(dllexport) void *CivProbe_HalvesStub(void) { return (void *)halves_st
 // half's first slot, or the 4 KB slack). A zero distance (no array) leaves the counter alone.
 // The list has 1024 slots and stops at 1023.
 // One set of arrays (DX9): the slots are what the constructor allocated (its note), and the same
-// rule applies; below the game's own capacity the stubs don't look it up.
+// rule applies. An array without a note has no slack after it: something else allocated it (a mod
+// DLL that swaps in a larger array and raises the capacity to match), it was under 256 bytes, or
+// its note was overwritten. Its counter stops at its own last slot. Below the
+// game's last slot the stubs don't look the limit up.
 
 volatile LONG g_nCmdDrop, g_nGroupDrop, g_nListDrop;
 
@@ -305,7 +318,9 @@ volatile LONG g_nCmdDrop, g_nGroupDrop, g_nListDrop;
 static DWORD limit1(const BYTE *array, DWORD gameCap, DWORD entry)
 {
     if (!array) return 0xFFFFFFFF;
-    DWORD slots = gameCap + note_spare(array, NULL) / entry;
+    DWORD spare;
+    if (!note_find(array, &spare, NULL)) return gameCap ? gameCap - 1 : 0;
+    DWORD slots = gameCap + spare / entry;
     return slots > gameCap ? slots - 1 : gameCap;
 }
 DWORD __cdecl cmd_limit1(BYTE *s) { return limit1(*(BYTE **)(s + 0x14), *(DWORD *)(s + 8), 0x20); }
@@ -333,10 +348,11 @@ __asm__(".text\n"
         "2:\tincl 0xc(%ecx)\n"
         "\tret\n"
         // One set of arrays: the same with the limit from cmd_limit1 once the count reaches the
-        // game's capacity [ecx+8]. Keeps eax, ecx, edx.
+        // game's last slot [ecx+8] - 1. Keeps eax, ecx, edx.
         ".globl _cmd_inc1\n_cmd_inc1:\n"
         "\tpushl %edx\n"
         "\tmovl 0xc(%ecx), %edx\n"
+        "\tincl %edx\n"
         "\tcmpl 8(%ecx), %edx\n"
         "\tjb 2f\n"
         "\tpushl %eax\n"
@@ -409,10 +425,11 @@ __asm__(".text\n"
         "\tmovl %edx, 4(%ecx)\n"
         "\tret\n"
         // One set of arrays: the same with the limit from group_limit1 once the count reaches the
-        // game's capacity [ecx+0x10].
+        // game's last slot [ecx+0x10] - 1.
         ".globl _group_inc1\n_group_inc1:\n"
         "\tmovl 4(%ecx), %eax\n"
-        "\tcmpl 0x10(%ecx), %eax\n"
+        "\tleal 1(%eax), %edx\n"
+        "\tcmpl 0x10(%ecx), %edx\n"
         "\tjb 2f\n"
         "\tpushl %ecx\n"
         "\tpushl %ecx\n"

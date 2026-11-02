@@ -244,9 +244,10 @@ int main(void)
         check(in == want && out == 8000 - want && !past, k ? "one set: records use the noted spare, then stop" : "one set: records stop at the size");
     }
 
-    // 8. One set of arrays: counters stop at the noted slots; no note: one past the game's capacity
-    // (the slot in the slack), as with two halves and no spare. Groups are 0x90 bytes here.
-    static BYTE cmd1[64 * 0x20], group1[16 * 0x90];
+    // 8. One set of arrays: counters stop at the noted slots; a note without spare: one past the
+    // game's capacity (the slot in the slack), as with two halves and no spare; no note (arrays
+    // swapped in by something else, no slack): the array's own last slot. Groups are 0x90 bytes here.
+    static BYTE cmd1[64 * 0x20], group1[16 * 0x90], cmdSwap[16 * 0x20], groupSwap[4 * 0x90];
     struct { int idx, nargs, saves, esiStream, group; const char *name; } st1[] = {
         {0, 3, 1, 0, 0, "commands (DX9 exe+0x4ec289, ret 0Ch)"},
         {1, 4, 1, 0, 0, "commands (DX9 exe+0x4ec30b, ret 10h)"},
@@ -256,20 +257,26 @@ int main(void)
         {5, 2, 1, 0, 1, "groups (DX9 exe+0x4ed08d / +0x4ed17d, ret 8)"},
         {6, 3, 1, 0, 1, "groups (DX9 exe+0x4ed110, ret 0Ch)"},
     };
-    for (int sp = 0; sp < 2; sp++)
+    static const char *const mode1[] = {"", "spare, ", "swapped in, "};
+    static const char *const want1[] = {"  counts stop one past the game's capacity", "  counts stop at the last noted slot",
+                                        "  counts stop at the array's last slot"};
+    static const DWORD cmdWant1[] = {16, 63, 15}, groupWant1[] = {4, 15, 3};
+    for (int sp = 0; sp < 3; sp++)
     for (int k = 0; k < 7; k++) {
         memset(s, 0, sizeof g_s);
         *(DWORD *)(s + 8) = 16;
         *(DWORD *)(s + 0x10) = 4;
-        *(BYTE **)(s + 0x14) = cmd1;
-        *(BYTE **)s = group1;
-        note(cmd1, sp ? 48 * 0x20 : 0);
-        note(group1, sp ? 12 * 0x90 : 0);
+        *(BYTE **)(s + 0x14) = sp == 2 ? cmdSwap : cmd1;
+        *(BYTE **)s = sp == 2 ? groupSwap : group1;
+        if (sp < 2) {
+            note(cmd1, sp ? 48 * 0x20 : 0);
+            note(group1, sp ? 12 * 0x90 : 0);
+        }
         for (int i = 0; i < 100; i++) enter(bound(st1[k].idx), st1[k].nargs, st1[k].saves, st1[k].esiStream, 1000 + i);
         DWORD cmdN = *(DWORD *)(s + 0xc), groupN = *(DWORD *)(s + 4);
-        int good = st1[k].group ? groupN == (sp ? 15u : 4u) && cmdN == 0 : cmdN == (sp ? 63u : 16u) && groupN == 0;
-        printf("one set, %s%s: commands %lu, groups %lu\n", sp ? "spare, " : "", st1[k].name, (unsigned long)cmdN, (unsigned long)groupN);
-        check(good, sp ? "  counts stop at the last noted slot" : "  counts stop one past the game's capacity");
+        int good = st1[k].group ? groupN == groupWant1[sp] && cmdN == 0 : cmdN == cmdWant1[sp] && groupN == 0;
+        printf("one set, %s%s: commands %lu, groups %lu\n", mode1[sp], st1[k].name, (unsigned long)cmdN, (unsigned long)groupN);
+        check(good, want1[sp]);
     }
     memset(s, 0, sizeof g_s);
     *(DWORD *)(s + 8) = 16;
