@@ -24,10 +24,13 @@ diagnostics used to find the bugs.
 3. Restart the game. Settings are read only when the game starts.
 4. To check, open the newest `events_….log` in the `civprobe` folder. Its `settings:` lines name
    the file the game read and every setting that counts, and say why a line doesn't count (a
-   setting written twice, a second `[probe]` line, a word or a number with commas for a value).
+   setting written twice, a name the fix doesn't know, a second `[probe]` line, a word or a
+   number with commas for a value).
 
 Any setting you leave out keeps its default. To add a setting named on these pages, write it on a
-new line at the end of the file. Delete the file to go back to all defaults.
+new line at the end of the file. If the file already has a line for that setting, change that
+line instead: when a setting is written twice, only the first one counts. Delete the file to go
+back to all defaults.
 
 Versions up to 1.4.0 read the file only from the `civprobe` folder. A file there still works, but
 one next to `msimg32.dll` takes its place.

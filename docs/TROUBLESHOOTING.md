@@ -180,8 +180,9 @@ more than DirectX 11), and the game as shipped crashed.
 
 This hasn't been seen in testing, but the faster AI turns work through the AI's updates faster
 than the game normally does, and some screen panels redraw a little less often. If something on
-screen looks stale after an AI turn, add these two lines at the end of the
-[settings file](SETTINGS.md#using-a-settings-file) and restart the game:
+screen looks stale after an AI turn, change these two settings' lines in the
+[settings file](SETTINGS.md#using-a-settings-file) to the following (without a `;` in front) and
+restart the game:
 
 ```ini
 UiQueuePasses=1
@@ -224,13 +225,13 @@ unnecessary ([Black squares](#black-squares-on-icons-or-city-banners)).
 
 ## Turning the fix off to compare
 
-To check whether a problem comes from the fix, you don't have to uninstall it. Add this line at
-the end of the [settings file](SETTINGS.md#using-a-settings-file):
+To check whether a problem comes from the fix, you don't have to uninstall it. In the
+[settings file](SETTINGS.md#using-a-settings-file), change the `;Enabled=1` line to:
 
 ```ini
 Enabled=0
 ```
 
 The DLL then does nothing but pass calls through to Windows' own `msimg32.dll`, and writes no log.
-Delete the line (or set `Enabled=1`) to turn it back on. Each
+Put the `;` back (or set `Enabled=1`) to turn it back on. Each
 part can also be turned off on its own; [Settings](SETTINGS.md) lists them.

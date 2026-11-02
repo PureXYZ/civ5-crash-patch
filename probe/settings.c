@@ -32,6 +32,31 @@ static int is_word(const char *v)
     return 0;
 }
 
+// Every setting the DLL reads. build.sh stops the build when a name read in the source is missing.
+static int is_known(const char *key)
+{
+    static const char *const kKnown[] = {
+        "AllocBigBytes", "AllocCrt", "AllocReportSeconds", "AllocSampleShift", "AllocTracking",
+        "AudioGuard", "AudioGuardTrack", "CommandStreamCap", "CommandStreamCmdSpare",
+        "CommandStreamGroupSpare", "CommandStreamMB", "CommandStreamSlackKB",
+        "CommandStreamSpareCallers", "CommandStreamSplit", "CommandStreamStats",
+        "CommandStreamTestRets", "CrtFailureLog", "D3DStats", "DbHeapMimalloc", "Enabled",
+        "FluidPools", "GameCoreIntervalMs", "GpuWatch", "HangRepeatSeconds", "HangSeconds",
+        "HeapHistogram", "HeapStats", "IntervalMs", "KeepSessions", "LastRunCheck",
+        "LowMemoryWarnInGame", "LowMemoryWarnMB", "LuaGcCrt", "LuaGcModule", "LuaGcSliceUs",
+        "LuaGcStepMB", "LuaHeapMimalloc", "LuaUnrefGuard", "MapGridReserve", "MiArenaMB",
+        "MiLargePadBytes", "MiMalloc", "MiMaxKB", "MiPurgeMs", "MsgQueueGuard", "PeakReportStepMB",
+        "PeriodicSnapshotMinutes", "ReserveLog", "ReserveLogMinKB", "SkipIntroPlayer",
+        "SmallBlockFallback", "SoundLog", "Telemetry", "TerrainBaseSlots", "TextureHandles",
+        "TopDown", "TopDownViews", "UiDirtyCoalesceMs", "UiQueueFrameMs", "UiQueuePasses",
+        "UiQueueShare", "UiQueueStats", "UiTeamMetCoalesceMs", "Watch", "WatchCallerRva",
+        "WatchGlobalExport", "WatchGlobalRva", "WatchLen", "WatchMode", "WatchOffset", "WatchSize",
+    };
+    for (size_t i = 0; i < sizeof kKnown / sizeof *kKnown; i++)
+        if (!_stricmp(key, kKnown[i])) return 1;
+    return 0;
+}
+
 // Digits in groups of three after the first: 16,384, 16 384 or 16.384.
 static int grouped(const char *v)
 {
@@ -73,8 +98,11 @@ void settings_report(const WCHAR *ini, int beside, int inner)
     n = GetPrivateProfileSectionW(L"probe", buf, 16384, ini);
     int set = 0;
     for (const WCHAR *s = buf; s < buf + n && *s; s += lstrlenW(s) + 1) {
+        // The first 160 characters (at most 480 UTF-8 bytes); a longer line ends in "...".
         char line[512];
-        if (!WideCharToMultiByte(CP_UTF8, 0, s, -1, line, sizeof line, NULL, NULL)) strcpy(line, "?");
+        int wn = lstrlenW(s), cut = wn > 160;
+        int bn = WideCharToMultiByte(CP_UTF8, 0, s, cut ? 160 : wn, line, sizeof line - 4, NULL, NULL);
+        strcpy(line + bn, cut ? "..." : "");
         const WCHAR *eq = wcschr(s, L'=');
         if (!eq || eq == s) {
             log_event("settings: \"%s\" isn't a setting (Name=value), so it doesn't count", line);
@@ -91,6 +119,10 @@ void settings_report(const WCHAR *ini, int beside, int inner)
         if (leq) *leq = 0;
         if (twice) {
             log_event("settings: %s=%s doesn't count: %s is already set above it", key, raw, key);
+            continue;
+        }
+        if (!is_known(key)) {
+            log_event("settings: %s=%s doesn't count: no setting has that name (check the spelling)", key, raw);
             continue;
         }
         set++;

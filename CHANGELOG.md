@@ -14,8 +14,8 @@ one small DirectX 9 safety detail (see Details), the fixes are the same as in 1.
   its place: if you have both, move your settings into that one.
 - **The log says which settings count.** The events log's `settings:` lines name the settings file
   and every setting the game used, and say why a line doesn't count: a setting written twice (the
-  first one counts), a second `[probe]` line, a word like `yes` for a value (read as 0), or a
-  number with commas (`16,384` reads as 16).
+  first one counts), a name the fix doesn't know (check the spelling), a second `[probe]` line, a
+  word like `yes` for a value (read as 0), or a number with commas (`16,384` reads as 16).
 - **Only `Enabled=0` turns the fix off.** A word or an empty value used to turn it off too.
 - **The example settings file changes nothing until you edit it.** Every setting in
   `optional\civprobe.ini` now has a `;` in front; delete it to change that setting. A copy of the
@@ -33,14 +33,18 @@ one small DirectX 9 safety detail (see Details), the fixes are the same as in 1.
   `=` removed, only the first `[probe]` section (any case), and only the first line of a key. The
   words it names are on, off, yes, no, true, false, enabled and disabled; a grouped number is 1-3
   digits followed by groups of three after `,`, a space or `.`. A UTF-8 byte order mark in front of
-  a `[probe]` first line hides that section, which the report shows as no `[probe]` line.
+  a `[probe]` first line hides that section, which the report shows as no `[probe]` line. Names
+  are checked against a list in `settings.c`; `build.sh` stops when a name the source reads is
+  missing from it. A line is logged up to its first 160 characters.
 - **`Enabled`:** off only when the value starts with `0` and reads as 0.
 - **Docs:** snippets no longer contain `[probe]` (pasted into a file that has one, its settings
   were ignored), the "create a text file" option is gone (it could end up as `civprobe.ini.txt`),
-  and the install check says the log's first line "contains" the version, since every line starts
-  with a timestamp.
+  the install check says the log's first line "contains" the version, since every line starts
+  with a timestamp, and changing a setting means changing its line (a second line for the same
+  setting doesn't count).
 - **Release zip:** `Compress-Archive "$d/*"` packs the folder's files instead of the folder.
-- New self-checking test `settingstest` (9 setups, 30 checks), run in CI.
+- New self-checking test `settingstest` (9 setups, 32 checks), run in CI. It puts the shared test ini back after
+  each child, so a stopped run leaves no settings file that later tests would read.
 - **Command stream, DirectX 9:** a counter on an array the fix didn't allocate (no constructor
   note, so no slack after it) now stops at the array's own last slot instead of one past it, for
   example on a larger array that a mod DLL swaps in. `streamtest` covers it.

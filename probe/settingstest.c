@@ -1,10 +1,10 @@
 // Settings file test (probe.c, settings.c). The parent runs itself as a child with civprobe.ini
 // only in the civprobe folder, in both places, only next to the DLL and in neither, then with files
 // next to the DLL that hold the mistakes the report names: a setting left behind its ;, a word or
-// a grouped number for a value, a setting twice, a line without =, two [probe] lines, no [probe]
-// line, Enabled=no (stays on) and Enabled=0 (no log). The files set different IntervalMs values, so
-// the "interval=" of the child's proxying line shows which one counted. The parent puts the shared
-// test ini back at the end.
+// a grouped number for a value, a setting twice, a line without =, a misspelled name, a 200-character
+// line, two [probe] lines, no [probe] line, Enabled=no (stays on) and Enabled=0 (no log). The files
+// set different IntervalMs values, so the "interval=" of the child's proxying line shows which one
+// counted. The parent puts the shared test ini back after each child.
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,6 +47,16 @@ static void newest_log(const char *dir, char *name)
 static char g_exe[MAX_PATH], g_dir[MAX_PATH], g_beside[MAX_PATH], g_inner[MAX_PATH];
 static char g_log[1 << 20];
 static int g_fresh;  // the child wrote a new events log
+static char g_savedBeside[65536], g_savedInner[65536];
+static size_t g_nBeside, g_nInner;
+
+// Puts the shared test ini back (and a settings file beside the test exes, if there was one) after
+// each child, so a run stopped between children leaves no test file that other tests would read.
+static void restore(void)
+{
+    put(g_beside, g_nBeside == (size_t)-1 ? NULL : g_savedBeside, g_nBeside);
+    put(g_inner, g_nInner == (size_t)-1 ? NULL : g_savedInner, g_nInner);
+}
 
 static const char kBeside[] = "[probe]\r\nIntervalMs=750\r\n";
 static const char kInner[] = "[probe]\r\nIntervalMs=1250\r\n";
@@ -79,6 +89,7 @@ static int run(const char *beside, const char *inner)
         size_t n = load(path, g_log, sizeof g_log - 1);
         g_log[n == (size_t)-1 ? 0 : n] = 0;
     }
+    restore();
     return code == 0;
 }
 
@@ -95,9 +106,8 @@ int main(int argc, char **argv)
     *strrchr(g_dir, '\\') = 0;
     snprintf(g_beside, sizeof g_beside, "%s\\civprobe.ini", g_dir);
     snprintf(g_inner, sizeof g_inner, "%s\\civprobe\\civprobe.ini", g_dir);
-    static char savedBeside[65536], savedInner[65536];
-    size_t nBeside = load(g_beside, savedBeside, sizeof savedBeside);
-    size_t nInner = load(g_inner, savedInner, sizeof savedInner);
+    g_nBeside = load(g_beside, g_savedBeside, sizeof g_savedBeside);
+    g_nInner = load(g_inner, g_savedInner, sizeof g_savedInner);
 
     check(run(NULL, kInner) && g_fresh, "civprobe folder only: child ran, log read");
     check(has("] settings: civprobe\\civprobe.ini\r\n"), "  logged as civprobe\\civprobe.ini");
@@ -116,9 +126,13 @@ int main(int argc, char **argv)
     check(has("] settings: none (all defaults)\r\n"), "  logged as none");
     check(has(" interval=2000ms "), "  the default IntervalMs used");
 
-    check(run("[probe]\r\n;Telemetry=1\r\nIntervalMs=750\r\nEnabled=no\r\nHangSeconds=yes\r\n"
-              "TextureHandles=16,384\r\nintervalms=500\r\nTelemetry:1\r\n", NULL) && g_fresh,
-          "mistakes: child ran, Enabled=no left the fix on");
+    char mistakes[512], longKey[201];
+    memset(longKey, 'K', 200);
+    longKey[200] = 0;
+    snprintf(mistakes, sizeof mistakes,
+             "[probe]\r\n;Telemetry=1\r\nIntervalMs=750\r\nEnabled=no\r\nHangSeconds=yes\r\n"
+             "TextureHandles=16,384\r\nintervalms=500\r\nTelemetry:1\r\nTerrainBaseSlot=14000\r\n%s=1\r\n", longKey);
+    check(run(mistakes, NULL) && g_fresh, "mistakes: child ran, Enabled=no left the fix on");
     check(has("] settings:   \"no\" isn't a number, so the fix stays on; Enabled=0 turns it off\r\n"),
           "  Enabled=no logged");
     check(has("] settings: HangSeconds=yes\r\n") && has("] settings:   \"yes\" isn't a number, so it counts as 0 (off)"),
@@ -129,6 +143,11 @@ int main(int argc, char **argv)
           has(" interval=750ms "), "  a setting set twice: the first counts, the second logged");
     check(has("] settings: \"Telemetry:1\" isn't a setting (Name=value), so it doesn't count\r\n"),
           "  a line without = logged");
+    check(has("] settings: TerrainBaseSlot=14000 doesn't count: no setting has that name (check the spelling)\r\n"),
+          "  a misspelled name logged");
+    char cut[256];
+    snprintf(cut, sizeof cut, "] settings: %.160s...= doesn't count: no setting has that name", longKey);
+    check(has(cut), "  a 200-character line cut at 160 and logged");
     check(!has("] settings: Telemetry") && !has("] settings: ;"), "  a setting behind its ; not listed");
     check(!has("] settings: nothing set"), "  not called empty");
 
@@ -147,10 +166,6 @@ int main(int argc, char **argv)
 
     check(run("[probe]\r\nEnabled=0\r\n", NULL), "Enabled=0: child ran");
     check(!g_fresh, "  the fix stayed off: no events log");
-
-    // Put the shared test ini back (and a settings file beside the test exes, if there was one).
-    put(g_beside, nBeside == (size_t)-1 ? NULL : savedBeside, nBeside);
-    put(g_inner, nInner == (size_t)-1 ? NULL : savedInner, nInner);
 
     printf("%s\n", g_ok ? "ALL PASSED" : "FAILURES");
     return g_ok ? 0 : 1;
