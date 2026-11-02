@@ -195,7 +195,7 @@ Python).
 | `resspikes.py <reserves csv> [--min-kb N] [--max-s S] [--from S] [--frames N] [--placed]` | Regions released again within a few seconds, for brief free-space dips (`--placed`: only those reserved at a chosen address). |
 | `portmap.py <DX11 exe> <other exe> [--objdump PATH] [--only NAMES] [--extra RVAS]` | Finds the DX11 addresses of `exes.c` in another build of the exe: code by the DX11 instructions around it (relocated dwords and branch displacements masked, decoded with LLVM-MinGW's `llvm-objdump`), data by the instructions that reference it. Prints how each was found; a few need checking by hand (see `exes.c`). |
 | `soundnames.py <sounds log> <game folder> [--mods DIR] [--top N] [--from S] [--to S]` | Names the sounds in a `SoundLog=1` log by their size (loose sound files and `*Sound*.fpk` packs), and lists the most started and the starts per 5 s. |
-| `cegall.py <exe> [0xRVA[:len] ...] [--list]` | The code ranges Steam's CEG checksums (the `mov eax, fn; call eax; ret` checks), and whether the given places are inside one. Run it on any new code change: one inside exe+0x2d00f0's ranges crashed map loads. |
+| `cegall.py <exe> [0xRVA[:len] ...] [--list]` | The code ranges Steam's CEG checksums (all 284 range loops, ~80% of `.text`; 26 of them behind `mov eax, fn; call eax; ret` stubs), and whether the given places are inside one. Run it on any new code change: one inside exe+0x2d00f0's ranges crashed map loads. |
 
 ## Diagnostic modes
 

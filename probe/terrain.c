@@ -15,8 +15,8 @@
 // page-in: at most TerrainPageinSpeedStill (8) a frame, about a second for a screen of 500 tiles
 // after a long scroll (measured live, session 20261101_215143, where 29% of the tiles had them).
 //
-// The pool init can't be changed: it lies in code that Steam's CEG checksums (26 checks, each a
-// `mov eax, fn; call eax; ret` stub whose function CRCs a table of code ranges; exe+0x2d00f0 covers
+// The pool init can't be changed: it lies in code that Steam's CEG checksums (284 loops CRC tables
+// of code ranges; the one behind the `mov eax, fn; call eax; ret` stub exe+0x2d00f0 covers
 // exe+0x2b7000..0x2b9800; cegall.py lists them all), and the result of that check sizes
 // per-thread arrays at map load (exe+0x25297 -> [exe+0x799474]). With the init patched the game
 // crashed loading a save: job threads ran past those arrays (session 20261101_224159). So only code

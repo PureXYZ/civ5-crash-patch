@@ -282,7 +282,7 @@ makes two per tile plus 64 past what the pool holds, with the same description a
 the pool's own setup uses (found from that code's call instructions), and appends them to the
 manager's free list with the game's reserve. A map the game's 6,144 cover gets nothing extra. The
 release at exit walks our array once. The pool setup itself is left alone: it is inside code that
-one of Steam's 26 copy-protection checksums covers, and that checksum's result sizes per-thread
+one of Steam's copy-protection checksums covers, and that checksum's result sizes per-thread
 arrays at map load (`probe/cegall.py` lists the checksummed code). `texhandles.c` grows the texture
 table by `TerrainBaseSlots` - 6,144 at startup. When the map fits, the game's own idle pre-render
 textures every tile a few minutes after a load. `terraintest` checks the three changed instructions

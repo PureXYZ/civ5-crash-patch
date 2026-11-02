@@ -56,6 +56,9 @@ In the order they happened:
    [Porting](#porting-to-the-directx-9-and-tablet-exes-2026-10-30)
 11. **Sounds.**
    [The chime that repeats during AI turns](#the-chime-that-repeats-during-ai-turns-2026-11-02)
+12. **The VP exe bug list and Steam's CEG.**
+   [Issue 13511's items](#the-exe-bugs-in-vp-issue-13511-2026-11-02) ·
+   [CEG checks more code than cegall.py saw](#steams-ceg-checks-more-code-than-cegallpy-saw)
 
 ## Why the game crashes
 
@@ -2389,3 +2392,108 @@ stopping when the AI turn ends. Does the patch cause it?
 - **Also in both sessions,** with either pacing, once per turn: the looping ambience beds (`RiverBed.mp3`, `ForestBed.mp3`, `JungleBed.mp3`, `OceanCoastBed.mp3`, …) restart 128
   times in 176-190 s and 141 times in 265-276 s, in bursts every ~0.5 s. The same with the
   game's pacing, so it's the game's soundscape, not the patch.
+
+## The exe bugs in VP issue 13511 (2026-11-02)
+
+LoneGazebo/Community-Patch-DLL issue 13511 (msw1age, 2026-10-30) lists 12 bugs and fixed-size
+limits in `CivilizationV_DX11.exe`, with addresses, found while porting the game to 64 bits. It is
+the same build as ours (timestamp 0x546CD0A8; every listed site has the expected bytes). The
+question here: which of them belong in this patch? The patch's rule is that it fixes overflows,
+memory corruption and crashes, and changes nothing a player sees or plays, so an item is in scope
+only if it can write past a buffer, corrupt memory or crash in a big VP game.
+
+Two replies on the issue matter here. JohnsterID (VP) checked the items against the DX9 exe too,
+proposed VP-side routes for items 1 (a draft PR sending only the active player's routes, #13531),
+6, 9, 10 and 12, and recommends that VP never patches exe code. His gist measures Steam's CEG
+coverage and puts most patch sites inside it. Hokath offered to re-save item 9's DDS files.
+
+### Steam's CEG checks more code than cegall.py saw
+
+The gist counts 287 checking loops over 145 range tables, covering 79.9% of the DX11 exe's `.text`
+(80.4% of DX9's) and ~66% of `.rdata`. `cegall.py` found 26 checks (2,450 ranges, 4.15 MB of
+`.text`, 71%): it only decoded the loops in functions behind `mov eax, fn; call eax; ret` stubs.
+The same loop is also inlined in ordinary game code: a call inside `cmp esi, N; jb` whose third
+argument from the call is `lea T(%r,%esi)` with r = [T+esi] (a self-relative range start) and whose
+fourth is `mov S(%esi)` (its size). Searching all of `.text` for that shape:
+
+| | DX11 | DX9 | tablet |
+|---|---|---|---|
+| Loops (tables) | 284 (142) | 284 (142) | 284 (142) |
+| `.text` covered | 4.66 MB, 79.9% | 4.65 MB, 80.4% | 4.74 MB, 81.1% |
+
+The DX11 and DX9 figures are the gist's own, and every one of the old 2,450 ranges is among the
+new ones. In DX11 66.0% of `.rdata` is covered, none of `.data` and none of the import table, so
+the patch's import-slot hooks and data writes stay outside the checks. `cegall.py` now uses the
+full search (about 7 s for one exe; same usage and output). Re-checked with it: terrain.c's three
+changed places are still outside every range; cmdstream's twelve code changes are inside 8-10
+loops each (they were already inside exe+0x2be0c0's, the known exception); every other module
+changes import slots or data. One 13511 site shows what the old tool missed: item 10's binding
+code (exe+0x246eb0) was "outside every range" and is inside 10 loops.
+
+cmdstream has run since 1.0.0 with code changes inside checked ranges and no visible effect. So
+"inside" doesn't always mean broken, and "outside" is still no proof: the gist also counts a few
+hundred single-block checks it couldn't map. The rule stays: new code changes go outside every
+range of the full search.
+
+### Item by item
+
+Each fixed limit was checked in the DX11 exe for what happens at the cap. RVAs from 0x400000;
+"loops" is how many of the 284 cover the site.
+
+| # | Item | What happens at the limit (DX11) | CEG (DX11) | Verdict |
+|---|---|---|---|---|
+| 1 | Trade-route lines, 256 routes | The slot allocator (exe+0x4640b0) returns NULL once the count is 0x100 (exe+0x4640d3). NewRoute (exe+0x13dc70) tests it and drops the route. The plot copy is clamped to 256 into the slot's 0x800-byte buffer (exe+0x13dc95). Every other user (exe+0x5c5e50, 0x4b1260, 0x79e630 and the frame builder exe+0x5d740) walks `count` entries. The builder's vertex and index reserve (exe+0x464200) refuses past 0x12000 / 0x48000, and both callers test for NULL. | allocator in 10 loops | Can't overflow; routes past 256 go undrawn. Likely on a late Huge game with 20+ civs. VP's draft #13531 sends only the active player's routes. Out of scope |
+| 2 | Hex grid, 1,024 hexes | Per wrap view (at most 3, exe+0x1733bd) the count starts at 0 and is tested before every hex (exe+0x173450, which leaves both loops). Each view has its own buffer of 12 x 0x400 vertices. | cap outside, buffer setup in 8 loops | Can't overflow. Grid overlay only, ultrawide or zoom mods. Out |
+| 3 | Path preview, 64 plots | The queue record (exe+0x2d5e40) is 0x200 bytes: a 16-byte header, then a 16-bit count and 64 triples, ending at +0x192. Writes are guarded (`cmp ebp, 40h; jae`, exe+0x4fc5b) and the count is clamped (exe+0x4fc95). The record has room for 82 triples. | 10 loops | Can't overflow. Long paths are drawn part way. Out |
+| 4 | Fog clouds, 10,240 sprites | The fill skips index >= 0x2800 (exe+0x114a64). The draw takes min(total, 0x2800) (exe+0x19fcfc). The buffers hold exactly that: 0xa000 vertices and 0xf000 indices (exe+0x28f539, 0x28f56c). | 10 loops | Can't overflow. Ultrawide only. Out |
+| 5 | Effect on a missing bone | Drawn at the map corner. The 64-bone limit is a guard (`cmp eax, 40h; jae` skips the bone, exe+0x13b438). Fixable in the art data for the Turtle Ship. | 10 loops | Visual. Out |
+| 6 | Ruins drawn after a load | A live city's model record is rebuilt as ruins until a capture or a reload. Nothing in the traced paths writes out of bounds. | 10-20 loops | Visual. Out |
+| 7 | Captured capital keeps its palace | The -1 store (exe+0x627b7, `mov [ebx+4], esi`) goes into the message's own key field (in bounds), so the teardown at exe+0x628e1 frees nothing and the model keeps the palace piece. | outside | Visual. Out |
+| 8 | Border loop skipped | Confirmed (below). | outside | Visual. Out |
+| 9 | DDS sizes not a multiple of 4 | Texture creation fails, the view is NULL and the image is blank (the issue's authors replayed it on WARP: no crash). Fixable by re-saving the files padded. | 10 loops | Visual. Out |
+| 10 | Weapon `<Usage>` dropped | Every unit uses its first weapon row (animation and effects). VP can add the column on its side. | 10 loops | Presentation. Out |
+| 11 | Options > Defaults | Wrong copies written by the options screen. | 11.1, 11.2 outside; 11.3 in 20 | Options. Out |
+| 12 | No mode of 1024 x 768 or more | Empty resolution list and a Lua error in the options screen; a saved full-screen choice opens windowed. Only with a driver that lists no such mode. An EUI nil check stops the error. | outside | Options. Out |
+
+**None is in scope.** Every fixed limit in 13511 is a checked cap that drops work (routes, grid
+hexes, path plots, sprites, bones) instead of writing past its buffer. The other items are visual
+or options bugs. Nothing here is a crash fix, so nothing is to be implemented under the patch's rule.
+
+### If visual fixes were in scope
+
+The same items, ranked by what a fix would take. CEG is from the full search of each exe, with the
+DX9 and tablet addresses from portmap.py.
+
+| Rank | Item | CEG: DX11 / DX9 / tablet | The change |
+|---|---|---|---|
+| 1 | 8, border loop | outside / 8 loops (exe+0x2e6408) / 10 loops (exe+0x205958) | 2 bytes, DX11 only |
+| 2 | 7, palace | outside / 12 loops (exe+0x33aea7) / 10 loops (exe+0x53b07) | The correct store, `mov [edi+58Ch], esi`, is 6 bytes against 3, so a call to a stub would replace the store and the call after it (8 bytes). The key-mismatch branch needs more. It frees a model member, with the risk that something still uses it |
+| 3 | 12, display modes | outside / not found / 10 loops | New code after the filter (exe+0x1531e0), for a rare driver state |
+| 4 | 3, path preview | 10 loops / outside / outside | Both 0x40 constants, plus the consumer of event 0x51 (not traced) |
+| - | 1, 2, 4, 5, 6, 9, 10 | inside in DX11 | Or already being fixed on the VP or data side |
+
+**Item 8 in detail.** The builder (exe+0x42640) walks each owner's plots and, for each of the six
+sides (table exe+0x88fb10, 12 bytes a side), searches the edges already traced for that owner
+(16-byte entries at [exe+0x8f0858], count [exe+0x8f085c], reset per owner). A match jumps to the
+next plot (exe+0x42958 and exe+0x42983: `0F 84` rel32 to exe+0x42a25) instead of the next side
+(exe+0x42a0a). So in a ring of plots around a pocket, plots whose first boundary side is on the
+outer loop never get to their inner side, and the inner loop is drawn only if some plot meets it
+first. The next-side path is safe to jump to: exe+0x42a0a is where the same-owner test
+(exe+0x4287b) already jumps, from the same stack depth (the search's two calls are balanced by
+`add esp, 8` at exe+0x42933). It reloads ebx from [esp+1Ch], and exe+0x42763 reloads ecx, edi and
+edx from the stack. The bytes are identical in the DX9 and tablet exes at their addresses.
+
+A fix (not built) in the style of terrain.c:
+- `exes.c`, DX11 only: `.borderSkips = {0x42958, 0x42983}`, `.borderNextSide = 0x42a0a`,
+  `.borderNextPlot = 0x42a25`. The DX9 and tablet sites are inside checked ranges, so they stay 0.
+- `border_check`: each skip is `0F 84` with a target of borderNextPlot. borderNextPlot starts
+  `8B 5C 24 3C` and borderNextSide starts `8B 5C 24 1C FF 44`. The `0F 84` at exe+0x4287b
+  targets borderNextSide.
+- The change: displacement bytes 0xC7 -> 0xAC at exe+0x4295a and 0x9C -> 0x81 at exe+0x42985.
+- The test: map the installed exe, check, apply and check the new targets. Then drive the builder
+  on a stand-in map with a ring of owned plots around an unowned pocket and count the loops it
+  appends through exe+0x6583d0: 1 before, 2 after.
+- The cost: the edge search then runs for every boundary side instead of stopping at a plot's first
+  traced one. That's per owner, boundary sides x traced edges, small next to a frame.
+- Nobody has reproduced the symptom in the unmodified game yet. The check in game: a ring of
+  territory around an unowned pocket should get its inner border line.
