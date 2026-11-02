@@ -2140,6 +2140,34 @@ In game (session 20261101_225853, TerrainBaseSlots=16700, the texture table at 1
 The extra textures were made at 132.9 s, between the load's two 41 s freezes, which were as long
 as before. While scrolling, tiles in state 1 still came back in 44 short bursts (at most 72 tiles,
 0.06 s median, 0.26 s longest), and the user saw no grey. The cost, about 110 MB of address space
-(~10 KB per slot past 6,144, more than the test program's 7 KB), is why `TerrainBaseSlots` stays
-off by default; the 10-minute report suggests the number for the map
-(`terrain: TerrainBaseSlots=… would hold every tile of this map`, two per tile plus 64).
+(~10 KB per slot past 6,144, more than the test program's 7 KB), made a fixed number too costly to
+turn on for everyone: a small map would pay for textures it never uses.
+
+### Third version: as many as each map needs, on by default
+
+`TerrainBaseSlots` became a ceiling (default 22528, the most). The hand-over only copies the game's
+handles (plus any made for an earlier map). The textures a map needs are made once it has loaded,
+from the tile update, the only per-frame code of the tile manager reachable without changing
+checksummed code: its off-screen sort (exe+0x3ba990) calls the exe's `qsort` import with a fixed
+comparator (exe+0x3a7060), and the exe calls `qsort` from nowhere else but the visible-list sort
+in the same function. A wrapper in the import slot (a data write) checks the comparator and, when
+the manager or its tile lists are new, reads the list counts that the lists' builder (exe+0x865e0,
+called from exe+0x2bb810 after the map's tiles exist) fills with every tile that isn't deep water:
+the pre-render list (+0x2324) and the rest (+0x231c), 8,288 + 9 = 8,297 on the test map, exactly
+the tiles whose height class isn't 1. It makes 2 per tile + 64 past the pool, up to the ceiling,
+and appends them to the manager's free list with the game's own reserve (exe+0x81f60, an
+FFastVector reserve: capacity doubles, contents move to a heap buffer from the game's allocator,
+the old one is freed), found through the hand-over's call of the manager setup (exe+0x23bcb0,
+`add esi,21E8Ch; cmp [esi+8],ebp; jae; push ebp; mov ecx,esi; call`). Both other candidates for
+the hook, the lists' builder's call (exe+0x2bb83b, in exe+0x2d00f0's ranges) and the update's call
+(exe+0x11b096, in exe+0x17b4c0's), are checksummed.
+
+In game (session 20261101_233101, same save, TerrainBaseSlots=22528, table 32,768): the top-up
+ran at 200.6 s, after the load's two 41 s freezes, and made 10,514 textures in 281 ms (16,658 in
+all); 8,297 of 8,297 tiles had base textures at 10 minutes, 23,514 handles in use, the per-thread
+grid N still 64. Free address space at 10 minutes: 553 MB (589 without the option, 480 with the
+second version), private commit 2,618 MB (2,609 and 2,683). Making the textures after the load
+instead of in the middle of it may pack the driver's allocations better, or the sessions just
+differ by that much; the docs give 40-110 MB for a Huge map. With the cost tied to the map (none
+for maps the game's 6,144 cover; 15 MB of handle records at the default ceiling either way), the
+option is on by default.

@@ -61,7 +61,8 @@ static const GameExe kExes[] = {
         .texPool = 0x3d3e2c0, .texRecords = 0x3d70b80, .texPoolFixups = 50, .texRecFixups = 52,
         .texSiteCount = sizeof kTexSitesDx11 / sizeof kTexSitesDx11[0], .texSites = kTexSitesDx11,
         .terrainObj = 0x9165e0, .terrainPoolCall = 0x76967, .terrainInit = 0x2b8760, .terrainHandCount = 0x1bd079,
-        .terrainHandArray = 0x1bd086, .terrainRelease = 0x2ccbfc, .terrainMgrLoad = 0x11b090, .terrainAlloc = 0x1c60b0,
+        .terrainHandArray = 0x1bd086, .terrainRelease = 0x2ccbfc, .terrainSort = 0x3ba990, .terrainLists = 0x865e0,
+        .terrainMgrLoad = 0x11b090, .terrainAlloc = 0x1c60b0,
     },
     {
         // portmap.py; the record allocator (rounds up to 256 bytes), the Lua lock wrappers and the

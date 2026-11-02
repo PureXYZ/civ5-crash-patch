@@ -44,10 +44,11 @@ typedef struct {
     const TexSite *texSites;
     // terrain.c: the static terrain object, the pool init's call on it, the start of the init's
     // base texture part (read, never changed: it's checksummed), the hand-over to a map's tile
-    // manager (count read, array lea), the release at exit (array lea), and the tile manager load
-    // and free-count compare the report relies on
+    // manager (count read, array lea), the release at exit (array lea), the tile update's
+    // off-screen sort (push comparator ... call [qsort]), the tile lists' builder, and the tile
+    // manager load and free-count compare the report relies on
     DWORD terrainObj, terrainPoolCall, terrainInit, terrainHandCount, terrainHandArray, terrainRelease;
-    DWORD terrainMgrLoad, terrainAlloc;
+    DWORD terrainSort, terrainLists, terrainMgrLoad, terrainAlloc;
 } GameExe;
 const GameExe *game_exe(const BYTE *exe);  // the table for this image (timestamp and size), or NULL
 const GameExe *game_exe_dx11(void);        // for the tests' stand-in images
@@ -166,11 +167,14 @@ const char *texhandles_apply(BYTE *exe, const GameExe *g, DWORD n, BYTE *records
 void terrain_init(const WCHAR *ini);  // DllMain, after texhandles_init
 void terrain_report(void);
 DWORD terrain_extra_handles(const WCHAR *ini);  // TerrainBaseSlots past the game's 6,144
-// Sends the hand-over to a map's tile manager to array (slots entries, zeroed), filled at the first
-// hand-over with the game's handles and slots - count more made by makeExtra(out, n) (NULL = the
-// game's own texture calls; it returns how many it made), and the release at exit to the same
-// array; terrain_check must have passed. NULL when done, else why nothing changed.
-const char *terrain_apply(BYTE *exe, const GameExe *g, DWORD slots, DWORD *array, DWORD (*makeExtra)(DWORD *, DWORD));
+// Sends the hand-over to a map's tile manager and the release at exit to array (cap entries,
+// zeroed), which gets the game's handles at the first hand-over, and hooks the exe's qsort import
+// so the tile update's off-screen sort adds what the map needs, up to cap: made by makeExtra(out,
+// n) (NULL = the game's own texture calls; it returns how many it made) and added to the
+// manager's free list with reserve (NULL = the game's; thiscall on the list, the new size).
+// terrain_check must have passed. NULL when done, else why nothing changed.
+const char *terrain_apply(BYTE *exe, const GameExe *g, DWORD cap, DWORD *array, DWORD (*makeExtra)(DWORD *, DWORD),
+                          void *reserve);
 void *terrain_handover_stub(void);  // for the test
 void *terrain_release_stub(void);
 

@@ -2,25 +2,28 @@
 
 ## Unreleased
 
-- **No more grey terrain when you scroll, on maps up to Huge** (opt-in: `TerrainBaseSlots`; the
-  log suggests a value for your map). The game keeps terrain textures for at most 3,072 map tiles
-  (6,144 base textures, two per tile), 29% of a 10,752-tile Huge map. Scroll anywhere else and the
-  tiles there are grey until the game rebuilds them, 8 per frame: about a second for a screen,
-  longer in slow AI turns. With `TerrainBaseSlots=N` the game gets N base textures instead. They
-  are made with the game's own texture calls when the first map loads and handed to the map with
-  the game's, and the texture table grows by the same number. Once every tile that isn't deep water
-  fits, the game's own idle pre-render textures the whole map a few minutes after a load, and
-  scrolling no longer shows grey. On that map (8,297 such tiles) `TerrainBaseSlots=16700` took the
-  tiles with textures from 29% to 99%. In a recording while scrolling across the map, no
-  untextured tile came into view; before, up to 463 did. It costs address space: 480 MB free at
-  10 minutes instead of 589 MB on the same save, about 10 KB per slot past 6,144 (the Direct3D
-  runtime and driver's share of each texture, and its handle record), plus 43 KB of video memory
-  each. DirectX 11 exe only. A
-  first version changed the game's texture pool setup directly, and loading a save crashed: that
-  code is covered by one of Steam's 26 copy-protection checksums, whose result sizes per-thread
-  arrays at map load. The released version changes only code no checksum covers. New test:
-  `terraintest`.
-- **The texture table can now grow to 32,768** (`TextureHandles`, still 16,384 by default). None
+- **No more grey terrain when you scroll, on maps up to Huge** (on by default; `TerrainBaseSlots=0`
+  turns it off). The game keeps terrain textures for at most 3,072 map tiles (6,144 base
+  textures, two per tile), 29% of a 10,752-tile Huge map. Scroll anywhere else and the tiles there
+  are grey until the game rebuilds them, 8 per frame: about a second for a screen, longer in slow AI
+  turns. Now each map gets exactly what it needs, two per tile that isn't deep water plus 64, up to
+  `TerrainBaseSlots` (22528, enough for any map): when the map has finished loading, the extra textures are
+  made with the game's own texture calls (0.3 s for 10,514 on that Huge map) and added to the
+  map's free list. A map that fits in the game's 6,144 makes none. Once every tile fits, the game's
+  own idle pre-render textures the whole map a few minutes after a load, and scrolling no longer
+  shows grey: on that map the tiles with textures went from 29% to 100%, and in a recording while
+  scrolling across the map no untextured tile came into view (before, up to 463 did). The cost is
+  address space: on that save 553 MB were free at 10 minutes instead of 589 MB (and 480 MB in an
+  earlier test that made them during the load), plus 920 bytes per slot of the setting for the bigger texture table (15 MB at 22528) and
+  43 KB of video memory per texture made. If a long Huge game gets near the low-memory warning, a
+  lower `TerrainBaseSlots` gives some of it back. DirectX 11 exe only. A first version changed the game's
+  texture pool setup directly, and loading a save crashed: that code is covered by one of Steam's
+  26 copy-protection checksums, whose result sizes per-thread arrays at map load. The released
+  version changes only code no checksum covers, plus the exe's `qsort` import (the map's tile
+  update sorts its tiles with it every frame, which is where the top-up happens). New test:
+  `terraintest`; new tool: `probe/cegall.py` lists the checksummed code.
+- **The texture table can now grow to 32,768** (`TextureHandles=16384` plus `TerrainBaseSlots`'
+  16,384 by default). None
   of the 124 instructions that index it squeezes a handle into fewer bits, and `texhandlestest`
   now runs the game's handle code at both 16,384 and 32,768 handles.
 - **Room for more textures: no more black icons in big modded games** (on by default;

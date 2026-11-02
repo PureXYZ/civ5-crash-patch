@@ -1,4 +1,5 @@
-// More texture handles than the game's 12,288 ([probe] TextureHandles, default 16384; 0 = the game's).
+// More texture handles than the game's 12,288 ([probe] TextureHandles, default 16384, plus
+// TerrainBaseSlots' extra; 0 = the game's).
 //
 // Every texture the engine makes (UI atlases, icons, fonts, terrain tiles, leader scenes) takes a
 // handle from one static pool (DX11 exe+0x3d3e2c0, 0x328c0 bytes):
@@ -37,9 +38,10 @@
 // the handle in the 8 instructions before it (checked 2026-11-01), so below 0x8000 they stay
 // clear of sign extension and of 0xffff. DX11 only so far. In game (Sapiens + Gaia, Huge,
 // TerrainDetailLevel 3, GPU texture decode, HD strategic view) a save loaded with 12,991 handles,
-// 703 past the game's table, and the icons were right. TerrainBaseSlots (terrain.c) adds its
-// slots past the game's 6,144 to the count, since each is a texture; with 16,700 slots the same
-// save ran with 23,590 handles in use, terrain and icons right (session 20261101_225853).
+// 703 past the game's table, and the icons were right. TerrainBaseSlots (terrain.c, default 22528)
+// adds its slots past the game's 6,144 to the count, since each is a texture, so the table holds
+// 32,768 by default; with 16,700 slots the same save ran with 23,590 handles in use, terrain and
+// icons right (session 20261101_225853).
 //
 // With or without the option, the sampler logs when the table passes 90% and when it is full, and
 // texhandles_report() logs how many handles are in use.

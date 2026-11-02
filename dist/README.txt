@@ -15,6 +15,8 @@ to that. A few bugs in the game waste memory or corrupt it when the game is busy
   - shortens AI turns and cuts hitches while you pan the map during them
   - makes room for more textures, so icons don't turn black in big modded games
     (DirectX 11)
+  - keeps the whole map's terrain textured, so it doesn't turn grey when you scroll
+    (DirectX 11)
 
 It doesn't change gameplay, rules, saves or mods. It works in every mode Steam offers when
 you start the game: DirectX 11, DirectX 9 and tablet.

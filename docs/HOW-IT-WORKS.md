@@ -44,7 +44,7 @@ turns go further.
 | Faster AI turns | Core update every 10 ms instead of 100, the exe's full small-block allocator switched off, up to 3 extra paced passes per frame over the core-to-UI queue. | ✔ | [`coretick.c`](../probe/coretick.c), [`smallblock.c`](../probe/smallblock.c), [`uiqueue.c`](../probe/uiqueue.c) |
 | Fewer hitches | Data-dirty records within 250 ms and `TeamMet` records within 30 s of the last run are merged into one late run. | ✔ | [`uiqueue.c`](../probe/uiqueue.c) |
 | Texture handles | The game's table of 12,288 textures grows to 16,384 (up to 32,768): the per-texture records move out and every reference is rewritten. | ✔ | [`texhandles.c`](../probe/texhandles.c) |
-| Terrain base textures (opt-in) | Up to 22,528 terrain base textures instead of 6,144, made at the first map load, so the whole map stays textured. | ✔ | [`terrain.c`](../probe/terrain.c) |
+| Terrain base textures | Each map gets the terrain base textures it needs (two per tile that isn't deep water) instead of the game's 6,144, so the whole map stays textured. | ✔ | [`terrain.c`](../probe/terrain.c) |
 
 ## Loading and safety checks
 
@@ -269,20 +269,25 @@ grown to 16,384 and to 32,768 handles, in a mapped copy of the exe.
 
 ## Terrain base textures
 
-`probe/terrain.c`, off by default (`TerrainBaseSlots=N`). Each map tile that isn't deep water needs
-two base textures (BC1, 256 x 256) before it is drawn. The game makes a pool of 6,144 once at
-startup, in an array inside its static terrain object, and copies them into each map's tile
-manager. Off-screen tiles keep theirs (and come back within a frame or two) until visible tiles
-need them; a tile without them is grey until it is rebuilt, 8 a frame. With N slots the first map
-load makes N - 6,144 more: the hand-over's read of the pool's count calls a stub that copies the
-game's handles into an array of ours, makes the rest with the same description and create calls
-the pool's own setup uses (found from that code's call instructions), and stores the total in the
-object. The hand-over's array becomes ours, and the release at exit walks ours once. The pool setup
-itself is left alone: it is inside code that one of Steam's 26 copy-protection checksums covers,
-and that checksum's result sizes per-thread arrays at map load. `texhandles.c` grows the texture
-table by the same N - 6,144. When N covers the map, the game's own idle pre-render textures every
-tile a few minutes after a load. `terraintest` checks the three changed instructions in a mapped
-copy of the exe and drives both stubs on a stand-in terrain object.
+`probe/terrain.c`, on by default (`TerrainBaseSlots=22528`, the most a map may get). Each map tile
+that isn't deep water needs two base textures (BC1, 256 x 256) before it is drawn. The game makes a
+pool of 6,144 once at startup, in an array inside its static terrain object, and copies them into
+each map's tile manager. Off-screen tiles keep theirs (and come back within a frame or two) until
+visible tiles need them; a tile without them is grey until it is rebuilt, 8 a frame. The hand-over's
+read of the pool's count calls a stub that copies the game's handles into an array of ours, and the
+hand-over's array becomes ours. Once the map has loaded, the tile update sorts its off-screen tiles
+with the exe's `qsort` import, which goes through a wrapper (a data write): when the map's tile lists
+are new (the game fills them with every tile that isn't deep water, for its idle pre-render), it
+makes two per tile plus 64 past what the pool holds, with the same description and create calls
+the pool's own setup uses (found from that code's call instructions), and appends them to the
+manager's free list with the game's reserve. A map the game's 6,144 cover gets nothing extra. The
+release at exit walks our array once. The pool setup itself is left alone: it is inside code that
+one of Steam's 26 copy-protection checksums covers, and that checksum's result sizes per-thread
+arrays at map load (`probe/cegall.py` lists the checksummed code). `texhandles.c` grows the texture
+table by `TerrainBaseSlots` - 6,144 at startup. When the map fits, the game's own idle pre-render
+textures every tile a few minutes after a load. `terraintest` checks the three changed instructions
+in a mapped copy of the exe and drives the stubs and the top-up on a stand-in terrain object and
+tile manager.
 
 ## Other exes: DirectX 9 and tablet
 
@@ -320,9 +325,9 @@ The game code the fix relies on is the same in all three, with these exceptions:
   still growing. They come from the game's per-frame buffer uploads. Trimming the device, splitting
   uploads, GPU-only buffers and DXVK were all tried; none helped (see the
   [research notes](RESEARCH-NOTES.md#conclusion-on-the-gpu-driver-regions-2026-10-30)).
-- **Grey terrain tiles after long scrolls on Huge maps** are fixed only when you opt in with
-  `TerrainBaseSlots`, because the textures that keep the whole map drawn cost address space (about
-  110 MB on a Huge map). Raising the page-in rate past the game's 8 a frame stranded tiles
+- **The textures that keep a Huge map drawn cost address space** (about 40-110 MB, made when the
+  map loads). Late in a long Huge game, a lower `TerrainBaseSlots` gives some back at the price of
+  some grey again. Raising the page-in rate past the game's 8 a frame stranded tiles
   ([details](RESEARCH-NOTES.md#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01)).
 - **Black UI squares** on DX11 with EUI/VP: most likely the full texture table, which GPU texture
   decode and the HD strategic view fill sooner (a big mod set loaded with 12,991 textures with
