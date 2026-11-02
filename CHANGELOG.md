@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **About 100 MB more free memory for the whole session** (on by default). Two things the game
+  loads at startup and never uses again:
+  - **The intro movie's video player** (`SkipIntroPlayer=2`; 1 = only with the game's **Skip intro
+    video** on, 0 = off). The opening movie plays
+    through DirectShow with a DirectDraw renderer, and on Windows 10 and 11 DirectDraw runs on the
+    graphics card's Direct3D 9 driver. So the movie brings in DirectShow, the Windows Media
+    decoders, DirectDraw, Direct3D 7 and the Direct3D 9 driver (NVIDIA's `nvd3dum.dll` is a 65 MB
+    image), and they stay loaded with a driver thread for the rest of the session: about 75 MB of
+    address space, read from the loader's own load times (11.1-11.4 s, in the order the movie
+    loads them). The game's **Skip intro video** option doesn't avoid it: the game still starts the
+    movie and stops it after 8.5 seconds (the logos). Now the video player is never started: the
+    exe's `CoCreateInstance` import refuses the movie's one call, the game treats the movie as
+    finished (its own path for a PC without DirectShow), and startup goes straight on, with no
+    movie and no logos. The movie can't play without those drivers, so `SkipIntroPlayer=1` skips
+    the player only while **Skip intro video** is on, for players who want the movie. All three
+    exes.
+  - **Room the game's Lua and SQLite heaps reserve up front** (with `LuaHeapMimalloc` /
+    `DbHeapMimalloc`). The game makes its Lua heap with 20 MB committed at once and the database
+    makes SQLite's with 5 MB; with both moved to mimalloc nothing uses that room (read in the game:
+    both heaps 100% free). Each module's one `HeapCreate` call now makes a growable heap with
+    nothing up front. `luaheaptest` checks it.
+
 - **No more grey terrain when you scroll, on maps up to Huge** (on by default; `TerrainBaseSlots=0`
   turns it off). The game keeps terrain textures for at most 3,072 map tiles (6,144 base
   textures, two per tile), 29% of a 10,752-tile Huge map. Scroll anywhere else and the tiles there

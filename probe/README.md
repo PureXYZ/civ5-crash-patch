@@ -100,8 +100,9 @@ build/CivilizationV_probetest.exe "C:\Program Files (x86)\Steam\steamapps\common
 | **Memory** | | |
 | `mialloc.c` | mimalloc for the small CRT allocations | on (`MiMaxKB=16`) |
 | `luagc.c` | Lua GC for database query results | on (`LuaGcStepMB=64`) |
-| `luaheap.c` | The game's Lua heap on mimalloc | on (`LuaHeapMimalloc=1`) |
+| `luaheap.c` | The game's Lua and SQLite heaps on mimalloc; both Windows heaps made with nothing up front | on (`LuaHeapMimalloc=1`, `DbHeapMimalloc=1`) |
 | `mapgrid.c` | Gives back the map detail grids' startup reserve before a map loads | on (`MapGridReserve=1`) |
+| `intro.c` | The intro movie's video player (and the Direct3D 9 driver it loads) isn't started; 1 = only with the game's Skip intro video on | on (`SkipIntroPlayer=2`) |
 | **Graphics** | | |
 | `texhandles.c` | Room for more than the game's 12,288 textures | on (`TextureHandles=16384`) |
 | `terrain.c` | Each map gets the terrain base textures it needs, so a big map stays textured | on (`TerrainBaseSlots=22528`) |

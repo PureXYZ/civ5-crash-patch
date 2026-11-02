@@ -3,14 +3,16 @@
 // before a free or a realloc). 4 threads (two per heap) do random allocations, reallocations and
 // frees and check every block's size and contents. Built with luaheap.c -DLUAHEAP_TEST. Also: a
 // block from a real heap (allocated before the hook) goes back to it, another heap's calls pass
-// straight through, and, when the game is installed, the database DLL's SQLite allocator matches
-// dbheap_check (else that part is skipped).
+// straight through, the two HeapCreate wrappers make growable heaps with almost nothing committed
+// (and note the size asked for) that still work, and, when the game is installed, the database
+// DLL's SQLite allocator matches dbheap_check (else that part is skipped).
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
 
 void luaheap_test_setup(HANDLE *luaVar, HANDLE *dbVar, void **a, void **r, void **f, void **s);
+void luaheap_test_create(void **lua, void **db, SIZE_T **luaUpfront, SIZE_T **dbUpfront);
 const char *dbheap_check(BYTE *db);
 void log_event(const char *fmt, ...) { (void)fmt; }
 
@@ -77,6 +79,32 @@ static DWORD WINAPI worker(LPVOID arg)
     return 0;
 }
 
+// Bytes committed in the heap's first segment (the region its handle starts).
+static SIZE_T committed(HANDLE h)
+{
+    MEMORY_BASIC_INFORMATION mbi;
+    SIZE_T n = 0;
+    for (BYTE *p = (BYTE *)h; VirtualQuery(p, &mbi, sizeof mbi) && mbi.AllocationBase == (void *)h; p += mbi.RegionSize)
+        if (mbi.State == MEM_COMMIT) n += mbi.RegionSize;
+    return n;
+}
+
+// Each module's HeapCreate wrapper, called the way the game calls it.
+static int check_create(HANDLE(WINAPI *create)(DWORD, SIZE_T, SIZE_T), SIZE_T *upfront, SIZE_T asked, const char *what)
+{
+    HANDLE h = create(0, asked, 0);
+    SIZE_T c = h ? committed(h) : 0;
+    void *p = h ? HeapAlloc(h, 0, 3 << 20) : NULL;  // grows past what it started with
+    int ok = h && *upfront == asked && c < 256 * 1024 && p && HeapFree(h, 0, p);
+    printf("%s HeapCreate(0, %lu MB, 0): %lu KB committed, asked-for size noted %s, grows %s\n", what,
+           (unsigned long)(asked >> 20), (unsigned long)(c >> 10), *upfront == asked ? "yes" : "NO", p ? "yes" : "NO");
+    HANDLE fixed = create(0, 0x10000, 0x100000);  // a heap with a maximum size is made as asked
+    if (!fixed || committed(fixed) < 0x10000) ok = 0;
+    if (h) HeapDestroy(h);
+    if (fixed) HeapDestroy(fixed);
+    return ok;
+}
+
 static int busy_left(HANDLE h)
 {
     PROCESS_HEAP_ENTRY e = {0};
@@ -110,6 +138,13 @@ int main(void)
     WaitForMultipleObjects(4, th, TRUE, INFINITE);
     printf("%ld operations, %ld errors; busy blocks left in the Windows heaps: Lua %d, SQLite %d\n", g_ops, g_errors,
            busy_left(lua), busy_left(db));
+
+    void *cl, *cd;
+    SIZE_T *ul, *ud;
+    luaheap_test_create(&cl, &cd, &ul, &ud);
+    if (!check_create((HANDLE(WINAPI *)(DWORD, SIZE_T, SIZE_T))cl, ul, 0x1400000, "Lua") ||
+        !check_create((HANDLE(WINAPI *)(DWORD, SIZE_T, SIZE_T))cd, ud, 0x500000, "SQLite"))
+        g_errors++;
 
     const char *dll = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sid Meier's Civilization V\\"
                       "CvGameDatabaseWin32Final Release.dll";

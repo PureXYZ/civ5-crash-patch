@@ -24,8 +24,15 @@
 // other users (the exe's HeapCompact exe+0x6217af and HeapWalk exe+0x63df20, the database's HeapWalk)
 // see an almost empty heap. DX11 addresses here; the DX9 and tablet exes have the same Lua allocator
 // (exes.c: luaAlloc, luaHeapVar; code checked) and share the database DLL.
+//
+// The heaps themselves are made with room up front: the exe's HeapCreate(0, 20 MB, 0)
+// (exe+0x4b903) and the database's HeapCreate(0, 5 MB, 0) commit it all at once, and with the
+// redirect nothing ever uses it (read in the game 2026-11-02: both 100% free, 25 MB). Each module
+// calls HeapCreate once, for that heap, so its HeapCreate import also gets a wrapper that asks for
+// a growable heap with nothing up front; it still grows if a block ever falls back to it.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <stdio.h>
 #include <string.h>
 #include "probe.h"
 #include <mimalloc.h>
@@ -34,15 +41,19 @@ typedef LPVOID(WINAPI *alloc_t)(HANDLE, DWORD, SIZE_T);
 typedef LPVOID(WINAPI *realloc_t)(HANDLE, DWORD, LPVOID, SIZE_T);
 typedef BOOL(WINAPI *free_t)(HANDLE, DWORD, LPVOID);
 typedef SIZE_T(WINAPI *size_t_t)(HANDLE, DWORD, LPCVOID);
+typedef HANDLE(WINAPI *create_t)(DWORD, SIZE_T, SIZE_T);
 static alloc_t real_alloc;
 static realloc_t real_realloc;
 static free_t real_free;
 static size_t_t real_size;
+static create_t real_create;
 
 typedef struct {
     HANDLE *var;  // where the module keeps the heap handle; NULL = not redirected
     DWORD tag;
     volatile LONG live, peak, blocks, fallback, foreign;
+    create_t create;  // the module's HeapCreate import before the probe's wrapper (NULL: not hooked)
+    SIZE_T upfront;   // what that HeapCreate asked to commit up front (0: not made by it yet)
 } Heap;
 static Heap g_lua = {.tag = 0x4D61754Cu};  // "LuaM"
 static Heap g_db = {.tag = 0x4D626453u};   // "SdbM"
@@ -122,6 +133,18 @@ static LPVOID WINAPI h_realloc(HANDLE h, DWORD flags, LPVOID p, SIZE_T n)
     return b + 2;
 }
 
+// A growable heap with nothing committed up front instead of the module's initial size.
+static HANDLE create(Heap *H, DWORD flags, SIZE_T initial, SIZE_T max)
+{
+    if (max || !initial) return H->create(flags, initial, max);
+    HANDLE h = H->create(flags, 0, 0);
+    if (!h) return H->create(flags, initial, max);
+    H->upfront = initial;
+    return h;
+}
+static HANDLE WINAPI h_create_lua(DWORD flags, SIZE_T initial, SIZE_T max) { return create(&g_lua, flags, initial, max); }
+static HANDLE WINAPI h_create_db(DWORD flags, SIZE_T initial, SIZE_T max) { return create(&g_db, flags, initial, max); }
+
 static void real_heap_functions(void)
 {
     HMODULE k = GetModuleHandleW(L"kernel32.dll");
@@ -129,6 +152,7 @@ static void real_heap_functions(void)
     real_realloc = (realloc_t)GetProcAddress(k, "HeapReAlloc");
     real_free = (free_t)GetProcAddress(k, "HeapFree");
     real_size = (size_t_t)GetProcAddress(k, "HeapSize");
+    real_create = (create_t)GetProcAddress(k, "HeapCreate");
 }
 
 #ifdef LUAHEAP_TEST
@@ -138,10 +162,19 @@ void luaheap_test_setup(HANDLE *luaVar, HANDLE *dbVar, void **a, void **r, void 
     real_heap_functions();
     g_lua.var = luaVar;
     g_db.var = dbVar;
+    g_lua.create = g_db.create = real_create;
     *a = (void *)h_alloc;
     *r = (void *)h_realloc;
     *f = (void *)h_free;
     *s = (void *)h_size;
+}
+// The two modules' HeapCreate wrappers, and what each one's caller asked to commit up front.
+void luaheap_test_create(void **lua, void **db, SIZE_T **luaUpfront, SIZE_T **dbUpfront)
+{
+    *lua = (void *)h_create_lua;
+    *db = (void *)h_create_db;
+    *luaUpfront = &g_lua.upfront;
+    *dbUpfront = &g_db.upfront;
 }
 #endif
 
@@ -167,13 +200,18 @@ static int slots_unhooked(BYTE *mod)
 }
 
 // Redirects the module's four imports; the wrappers serve both heaps, so a second call for the
-// other module only repoints that module's slots.
-static void redirect(BYTE *mod)
+// other module only repoints that module's slots. Its HeapCreate goes to H's own wrapper unless
+// something else already hooks it (then the heap keeps its room up front).
+static void redirect(BYTE *mod, Heap *H, void *createWrapper)
 {
     set_slot(mod, "HeapSize", (void *)h_size);
     set_slot(mod, "HeapFree", (void *)h_free);
     set_slot(mod, "HeapReAlloc", (void *)h_realloc);
     set_slot(mod, "HeapAlloc", (void *)h_alloc);
+    if (slot_is(mod, "HeapCreate", (void *)real_create)) {
+        H->create = real_create;
+        set_slot(mod, "HeapCreate", createWrapper);
+    }
 }
 
 static int mimalloc_ok(void)
@@ -254,7 +292,7 @@ static void dbheap_init(const WCHAR *ini)
     if (*(HANDLE *)(db + DB_HEAP_VAR))
         log_event("dbheap: the SQLite heap already exists; its older blocks stay in it");
     g_db.var = (HANDLE *)(db + DB_HEAP_VAR);
-    redirect(db);
+    redirect(db, &g_db, (void *)h_create_db);
     log_event("dbheap: the game database's SQLite memory goes to mimalloc instead of its own Windows heap (which "
               "never gives space back); no game code changed");
 }
@@ -274,19 +312,32 @@ void luaheap_init(const WCHAR *ini)
         return;
     }
     g_lua.var = (HANDLE *)(exe + g->luaHeapVar);
-    redirect(exe);
+    redirect(exe, &g_lua, (void *)h_create_lua);
     log_event("luaheap: the game's Lua objects go to mimalloc instead of its own Windows heap (which never gives space "
               "back); no game code changed");
 }
 
+// How the module's Windows heap was made, for the report.
+static const char *made(const Heap *H, char *buf, size_t cap)
+{
+    if (!H->create) return "its HeapCreate wasn't hooked";
+    if (!H->upfront) return "its Windows heap not made yet";
+    snprintf(buf, cap, "its Windows heap made with nothing up front (the game asked for %.0f MB)",
+             H->upfront / 1048576.0);
+    return buf;
+}
+
 void luaheap_report(void)
 {
+    char a[96];
     if (g_lua.var)
         log_event("luaheap: %ld Lua blocks, %.1f MB live in mimalloc (peak %.1f MB); %ld fell back to the Windows "
-                  "heap, %ld frees of blocks that weren't ours",
-                  g_lua.blocks, g_lua.live / 1048576.0, g_lua.peak / 1048576.0, g_lua.fallback, g_lua.foreign);
+                  "heap, %ld frees of blocks that weren't ours; %s",
+                  g_lua.blocks, g_lua.live / 1048576.0, g_lua.peak / 1048576.0, g_lua.fallback, g_lua.foreign,
+                  made(&g_lua, a, sizeof a));
     if (g_db.var)
         log_event("dbheap: %ld SQLite blocks, %.1f MB live in mimalloc (peak %.1f MB); %ld fell back to the Windows "
-                  "heap, %ld frees of blocks that weren't ours",
-                  g_db.blocks, g_db.live / 1048576.0, g_db.peak / 1048576.0, g_db.fallback, g_db.foreign);
+                  "heap, %ld frees of blocks that weren't ours; %s",
+                  g_db.blocks, g_db.live / 1048576.0, g_db.peak / 1048576.0, g_db.fallback, g_db.foreign,
+                  made(&g_db, a, sizeof a));
 }

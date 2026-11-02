@@ -147,6 +147,7 @@ overhead was about 340 MB, which is why large blocks stay on the game's heap.
 | `MapGridReserve` | 1 | Gives back the room the game reserves at startup for the largest possible map (178 MB), so loading a map reserves only what it needs. 0 = off. |
 | `LuaHeapMimalloc` | 1 | Keeps the game's Lua objects in mimalloc instead of a Windows heap that never shrinks. 0 = off. |
 | `DbHeapMimalloc` | 1 | Keeps the game database's SQLite memory in mimalloc instead of a Windows heap that keeps its load-time peak. 0 = off. |
+| `SkipIntroPlayer` | 2 | Doesn't start the intro movie's video player at all (it loads about 75 MB of video and Direct3D 9 drivers that stay for the whole session), so the opening movie and logos don't play. 1 = only when the game's own **Skip intro video** option is on. 0 = off. |
 
 **`MapGridReserve`.** At startup the game reserves room for two map detail grids as large as the
 biggest map it supports (152 × 96), whatever map you play. Loading a map sizes them for that map
@@ -160,7 +161,10 @@ its peak size and its holes: late in a Huge game, ~190 MB of address space for ~
 mimalloc gives empty space back. Only that heap's four calls (allocate, reallocate, free, size)
 are redirected, and each block keeps its requested size, so the game's own Lua memory count stays
 exact. In game the Windows Lua heap went from 193 to 20 MB (about 33 MB saved at 10 minutes, more
-as a session goes on). The `luaheap:` line of each report shows live Lua MB.
+as a session goes on). Those last 20 MB are room the game asks for up front when it makes the heap,
+and nothing uses them once the objects are in mimalloc, so the heap is now made with nothing up
+front (it still grows if a block ever has to fall back to it). The `luaheap:` line of each report
+shows live Lua MB.
 
 **`DbHeapMimalloc`.** The game database gives SQLite a Windows heap of its own, which keeps its
 load-time peak. With a large mod
@@ -168,7 +172,24 @@ set SQLite peaks at about 78 MB while the mods load and then uses about 14 MB, b
 holds 94 MB. This option moves that heap's four calls to mimalloc the same way as
 `LuaHeapMimalloc`, after checking the database DLL's code. The `dbheap:` line of each report shows
 live SQLite MB. In one test on a late Huge save it gave 74 MB more free memory at 10 minutes
-(SQLite peaked at 72 MB while loading and kept 12 MB live), with no change in loading time.
+(SQLite peaked at 72 MB while loading and kept 12 MB live), with no change in loading time. As
+with the Lua heap, the SQLite heap's 5 MB of room up front is no longer made.
+
+**`SkipIntroPlayer`.** The game plays its opening movie through DirectShow with a renderer built
+on DirectDraw, and on Windows 10 and 11 DirectDraw runs on the graphics card's Direct3D 9 driver.
+So at startup the movie loads DirectShow, the Windows Media decoders, DirectDraw, Direct3D 7 and
+the Direct3D 9 driver (NVIDIA's alone is a 65 MB file), and they stay loaded, with a driver thread,
+for the rest of the session: about 75 MB of address space for a movie you saw once. Even the
+game's **Skip intro video** option (Options, or `SkipIntroVideo = 1` in `UserSettings.ini`) doesn't
+avoid it: the game still starts the movie and stops it after 8.5 seconds, the Firaxis and 2K logos.
+With this fix the video player is never started: the game sees what it would on a PC without
+DirectShow, treats the movie as finished, and goes straight on, so neither the movie nor the logos
+show and startup is shorter. There is no way to play the movie without loading those drivers, so
+if you want to see it, set `SkipIntroPlayer=1` (the player is then skipped only while **Skip intro
+video** is on) or `0`. No game code is changed (the exe's `CoCreateInstance` import refuses only
+the movie's one call). In the DirectX 9 exe the Direct3D 9 driver is the game's own renderer, so
+there it saves DirectShow, DirectDraw and the decoders only. The log's `intro:` line says when it
+skipped the player.
 
 ---
 

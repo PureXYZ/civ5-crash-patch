@@ -49,6 +49,9 @@ typedef struct {
     // manager load and free-count compare the report relies on
     DWORD terrainObj, terrainPoolCall, terrainInit, terrainHandCount, terrainHandArray, terrainRelease;
     DWORD terrainSort, terrainLists, terrainMgrLoad, terrainAlloc;
+    // intro.c: the intro player's CoCreateInstance(CLSID_FilterGraph) call, the owner's copy of
+    // the SkipIntroVideo setting into the player, and that setting
+    DWORD introCreate, introSkipCopy, skipIntro;
 } GameExe;
 const GameExe *game_exe(const BYTE *exe);  // the table for this image (timestamp and size), or NULL
 const GameExe *game_exe_dx11(void);        // for the tests' stand-in images
@@ -70,6 +73,7 @@ const char *luaguard_check(BYTE *exe, const GameExe *g);
 const char *d3dstats_check(BYTE *exe, const GameExe *g);
 const char *texhandles_check(BYTE *exe, const GameExe *g);
 const char *terrain_check(BYTE *exe, const GameExe *g);
+const char *intro_check(BYTE *exe, const GameExe *g);
 
 // alloctrack.c
 void alloc_init(const WCHAR *ini);
@@ -177,6 +181,9 @@ const char *terrain_apply(BYTE *exe, const GameExe *g, DWORD cap, DWORD *array, 
                           void *reserve);
 void *terrain_handover_stub(void);  // for the test
 void *terrain_release_stub(void);
+
+// intro.c
+void intro_init(const WCHAR *ini);
 
 // msgqueue.c
 void msgqueue_init(const WCHAR *ini);  // DllMain (takes the main thread's id)

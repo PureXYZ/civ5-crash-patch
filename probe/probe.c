@@ -304,6 +304,7 @@ __declspec(dllexport) int CivProbe_CheckExe(const WCHAR *exePath, char *report, 
         {"uiqueue tables", uiqueue_tables_check}, {"mapgrid", mapgrid_check}, {"luaheap", luaheap_check},
         {"coretick", coretick_check}, {"smallblock", smallblock_check}, {"luaguard", luaguard_check},
         {"d3dstats", d3dstats_check}, {"texhandles", texhandles_check}, {"terrain", terrain_check},
+        {"intro", intro_check},
     };
     int o = snprintf(report, cap, "%s:", g->name), ok = 1;
     for (size_t i = 0; i < sizeof parts / sizeof parts[0] && o < cap; i++) {
@@ -1095,6 +1096,7 @@ static void start_probe(void)
     d3dstats_init(ini);
     texhandles_init(ini);
     terrain_init(ini);  // after texhandles_init: the table must have room for the textures
+    intro_init(ini);
 
     g_overflowReq = CreateEventW(NULL, FALSE, FALSE, NULL);
     g_overflowDone = CreateEventW(NULL, FALSE, FALSE, NULL);

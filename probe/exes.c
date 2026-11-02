@@ -63,6 +63,7 @@ static const GameExe kExes[] = {
         .terrainObj = 0x9165e0, .terrainPoolCall = 0x76967, .terrainInit = 0x2b8760, .terrainHandCount = 0x1bd079,
         .terrainHandArray = 0x1bd086, .terrainRelease = 0x2ccbfc, .terrainSort = 0x3ba990, .terrainLists = 0x865e0,
         .terrainMgrLoad = 0x11b090, .terrainAlloc = 0x1c60b0,
+        .introCreate = 0x21a3f4, .introSkipCopy = 0x135742, .skipIntro = 0x8cf0c5,
     },
     {
         // portmap.py; the record allocator (rounds up to 256 bytes), the Lua lock wrappers and the
@@ -84,6 +85,7 @@ static const GameExe kExes[] = {
         .coreSite = 0xd4f83, .coreAcc = 0x8d139c,
         .luaLock = 0x505f60, .luaUnlock = 0x505f70,
         .d3dContext = 0x2c12584, .d3dFlushUse = 0x4c337b, .d3dFlushVB = 0x4c3399, .d3dFlushIB = 0x4c3458,
+        .introCreate = 0x2ca374, .introSkipCopy = 0x2b1ed2, .skipIntro = 0x8d0b45,
     },
     {
         // portmap.py; the command stream (a different layout), the aligned delete, the Lua lock
@@ -104,6 +106,7 @@ static const GameExe kExes[] = {
         .luaHeapVar = 0x884b1c, .luaAlloc = 0x10b280,
         .coreSite = 0x2e6b43, .coreAcc = 0x8bf764,
         .luaLock = 0x4f78a0, .luaUnlock = 0x4f78b0,
+        .introCreate = 0x1f7e24, .introSkipCopy = 0x2742e2, .skipIntro = 0x8bef0d,
     },
 };
 

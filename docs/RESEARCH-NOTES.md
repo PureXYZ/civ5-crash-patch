@@ -2171,3 +2171,97 @@ instead of in the middle of it may pack the driver's allocations better, or the 
 differ by that much; the docs give 40-110 MB for a Huge map. With the cost tied to the map (none
 for maps the game's 6,144 cover; 15 MB of handle records at the default ceiling either way), the
 option is on by default.
+
+## Where the address space goes now, and two more savings (2026-11-02)
+
+The question: after mimalloc, the Lua and SQLite heaps, the map grids and the texture work, what
+still grows, what is fragmented, and what is held for nothing? Data: the 125-minute play session
+20261101_160238 (turns ~132-171, the Sapiens/Gaia mod set on a Huge map; 503 MB free at 10 minutes,
+89 MB at 120, largest free block 14 MB), the scrolling sessions 225853 and 233101, and read-only
+reads of the running game (session 233101): ReadProcessMemory only, nothing suspended.
+
+### What grows in a long session
+
+Diffing the 10- and 120-minute VA maps of session 160238 (-413 MB free):
+
+| What | Change | Why |
+|---|---|---|
+| mimalloc | +128 MB (32 new 4 MB segments) | live blocks 823 -> 960 MB: game state (units 1,287 -> 1,683) |
+| GPU driver regions | +96 MB (10 -> 13 regions) | mostly only reserved inside them (226 MB at 120 min); see "Conclusion on the GPU driver regions" |
+| CRT heap large blocks (VirtualAlloc'd, > 508 KB) | +67 MB net | 0.57, 1.13, 4 and 5-12 MB blocks: game arrays and render data |
+| CRT heap segments | +47 MB (3 new 16 MB) | blocks of 16-508 KB (mimalloc takes the smaller ones) |
+| mapped | +19 MB | one new section |
+| process heap | +16 MB (one segment) | driver / D3D11 runtime objects |
+
+So the growth is the game's own data plus the driver regions; there is no single leak.
+
+### How full the heaps are
+
+mimalloc, by walking its segment headers (micensus2.py, session 7bac1bfc scratchpad): 1,040 MB in
+260 segments, 960 MB live (92%), 35 MB free blocks (mostly 32 and 48 B), 29 MB free spans, 8 MB
+headers. The three job threads own 16 segments and ~60 MB live each.
+
+The NT heaps, from their own headers (scratchpad heapfree.py: _HEAP.TotalFreeSize at +0x74, the
+segment list at +0xa4, the large-block list at +0x9c, the backend free list at +0xc0; PEB32 lists
+only the process heap on this Windows 11 build, so the handles come from a VA map's `heap:` bases):
+
+| Heap | Segments (reserved / committed) | Free in them | Large blocks |
+|---|---|---|---|
+| process | 269 / 259 MB | 0.4 MB | 3, 5 MB |
+| CRT (msvcr90) | 268 / 253 MB | 4.0 MB | 351, 866 MB |
+| Lua (the game's) | 20 / 20 MB | 20 MB (all of it) | none |
+| SQLite (the database's) | 5 / 5 MB | 5 MB (all of it) | none |
+
+The backend free counts don't include the low-fragmentation front end's empty slots, but with the
+small blocks in mimalloc that front end serves little. So the Windows heaps are no longer
+fragmented; the CRT heap's large blocks are the 4 x 24 MB fluid particle pools, the map grids
+(84 + 42), the temp heap (68), the fluid grid (48 + 24), the flowfield copy (16), leader-head
+texture data (~140 MB of 0.5-3 MB blocks), 100 blocks of 0.57 MB and 76 of 0.5 MB from the
+texture code (exe+0x4cde34, exe+0x4bddc3), and twenty 4 MB blocks.
+
+The Lua and SQLite heaps hold only the room the game asks for up front: `HeapCreate(0, 20 MB, 0)`
+(exe+0x4b903, the exe's only HeapCreate; tablet 0x43e73, DX9 0x77b73) and `HeapCreate(0, 5 MB, 0)`
+(db+0x65da, the DLL's only one). With `LuaHeapMimalloc` and `DbHeapMimalloc` nothing allocates from
+them. luaheap.c now also wraps each module's HeapCreate import and makes the heap growable with
+nothing up front (4 KB committed in luaheaptest), 25 MB saved.
+
+### The intro movie keeps the Direct3D 9 driver loaded
+
+The loader's own load times (LDR_DATA_TABLE_ENTRY.LoadTime at +0x88, LoadReason at +0x94; scratchpad
+ldrtimes.py) put a group of DLLs at 11.13-11.44 s: quartz.dll (DirectShow), WMVCore/WMASF/qasf,
+DDRAW.dll (delay-loaded by quartz), **nvd3dum.dll, the NVIDIA Direct3D 9 driver, 65.3 MB, at
+11.16 s**, D3DIM700.DLL (Direct3D 7), the audio stack, WMADMOD, devenum, wmvdecod. They are all
+still loaded at 16 minutes, with one thread running in nvd3dum.dll (scratchpad threads.py: thread
+start addresses) and a 3.5 MB DirectDraw region (reserve log). That is the opening movie: the exe's
+player (vtable exe+0x6217b8, made at exe+0x1356d0) builds a DirectShow graph
+(`CoCreateInstance(CLSID_FilterGraph)` at exe+0x21a3f4, the only reference to that CLSID) and adds
+the VMR-7 renderer (exe+0x8df38), which is DirectDraw 7, and DirectDraw runs on the WDDM Direct3D 9
+driver. The player's Stop (exe+0x5a710) releases every interface, but the driver stays.
+
+`SkipIntroVideo = 1` (UserSettings.ini, exe+0x8cf0c5) doesn't prevent it: the owner copies it into
+the player (+0x30, exe+0x135742), calls Play anyway and waits on IsDone (exe+0x2b2b30), which with
+the flag set stops at 8.5 s of the movie (position >= +0x38/+0x3c = 0x510ff40 x 100 ns), i.e. the
+logos. If the graph can't be made, Play returns at once with its finished flag (+0x2c) set, IsDone
+is true at the first check, and the owner calls Stop, which handles the missing interfaces (and its
+callback removal only searches a list). That path skips one ShowCursor(FALSE) (exe+0x21a75c) that
+Stop's ShowCursor(TRUE) undoes; the game calls ShowCursor elsewhere too, so the probe makes that call
+itself. intro.c (`SkipIntroPlayer`): the exe's `CoCreateInstance` import refuses the Play site's
+call with REGDB_E_CLASSNOTREG, always (2, the default: the user chose no movie for everyone, since
+playing it can't avoid the drivers) or only with the game's flag on (1). The flag is read only in
+IsDone, so the path is the same either way. Both import slots
+are outside every CEG range (cegall.py). Same code in the tablet (call 0x2ca374, flag 0x8d0b45, copy
+0x2b1ed2) and DX9 (0x1f7e24, 0x8bef0d, 0x2742e2) exes; the DX9 exe uses the Direct3D 9 driver to
+render anyway.
+
+### What's left, largest first
+
+- **GPU driver regions**: 115-226 MB only reserved inside the driver's 32 MB regions. Closed
+  (see above): the driver's own pooling.
+- **Leader-head texture data**: ~140 MB of CPU copies (CvLeaderHeadTextureManager), loaded at save
+  load. `LeaderTextureReduction` in GraphicsSettingsDX11.ini is the user-side lever (smaller
+  leader textures).
+- **Fluid particle pools**: 4 x 24 MB committed (FluidParticles.cpp l.623), 12.4 / 0.5 / 0.7 /
+  0.5 MB touched. A smaller pool needs to know what the code does when one fills;
+  `MaxSimultaneousThreads` sets how many there are.
+- **NVIDIA's 128 MB reservation** (NvMemMapStorage, nothing committed): the driver's.
+- **mimalloc's own overhead**: ~80 MB (8%).
