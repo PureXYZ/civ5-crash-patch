@@ -143,6 +143,7 @@ overhead was about 340 MB, which is why large blocks stay on the game's heap.
 |---|---|---|
 | `MapGridReserve` | 1 | Gives back the room the game reserves at startup for the largest possible map (178 MB), so loading a map reserves only what it needs. 0 = off. |
 | `LuaHeapMimalloc` | 1 | Keeps the game's Lua objects in mimalloc instead of a Windows heap that never shrinks. 0 = off. |
+| `DbHeapMimalloc` | 1 | Keeps the game database's SQLite memory in mimalloc instead of a Windows heap that keeps its load-time peak. 0 = off. |
 
 **`MapGridReserve`.** At startup the game reserves room for two map detail grids as large as the
 biggest map it supports (152 × 96), whatever map you play. Loading a map sizes them for that map
@@ -158,8 +159,8 @@ are redirected, and each block keeps its requested size, so the game's own Lua m
 exact. In game the Windows Lua heap went from 193 to 20 MB (about 33 MB saved at 10 minutes, more
 as a session goes on). The `luaheap:` line of each report shows live Lua MB.
 
-**`DbHeapMimalloc` (experimental, off by default; `DbHeapMimalloc=1` turns it on).** The game
-database gives SQLite a Windows heap of its own, which keeps its load-time peak. With a large mod
+**`DbHeapMimalloc`.** The game database gives SQLite a Windows heap of its own, which keeps its
+load-time peak. With a large mod
 set SQLite peaks at about 78 MB while the mods load and then uses about 14 MB, but the heap still
 holds 94 MB. This option moves that heap's four calls to mimalloc the same way as
 `LuaHeapMimalloc`, after checking the database DLL's code. The `dbheap:` line of each report shows

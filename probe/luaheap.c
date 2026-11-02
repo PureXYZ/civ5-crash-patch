@@ -1,5 +1,5 @@
 // The game's Lua heap on mimalloc ([probe] LuaHeapMimalloc, default 1; 0 = off), and the game
-// database's SQLite heap on mimalloc ([probe] DbHeapMimalloc, default 0 = off).
+// database's SQLite heap on mimalloc ([probe] DbHeapMimalloc, default 1; 0 = off).
 //
 // The exe's Lua allocator (lua_Alloc, exe+0x2ce440) keeps every Lua object in a heap of its own,
 // created at startup with the low-fragmentation front end (exe+0x44b912, handle at exe+0x894b1c)
@@ -242,7 +242,7 @@ const char *dbheap_check(BYTE *db)
 
 static void dbheap_init(const WCHAR *ini)
 {
-    if (!GetPrivateProfileIntW(L"probe", L"DbHeapMimalloc", 0, ini)) return;
+    if (!GetPrivateProfileIntW(L"probe", L"DbHeapMimalloc", 1, ini)) return;
     BYTE *db = (BYTE *)GetModuleHandleW(L"CvGameDatabaseWin32Final Release.dll");
     const char *why = !db ? "not loaded" : dbheap_check(db);
     if (!why && !slots_unhooked(db)) why = "import slots";
