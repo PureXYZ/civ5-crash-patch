@@ -1,66 +1,89 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
 
-- **About 100 MB more free memory for the whole session** (on by default). Two things the game
-  loads at startup and never uses again:
+### What's new
+
+To update, close the game and copy the new `msimg32.dll` over the old one. Everything below is
+on by default; you don't need the settings file.
+
+- **No more black icons in big modded games.** The game can hold only 12,288 textures and keeps
+  nearly every one it loads. A big mod set on a Huge map filled that, and from then on icons and
+  city banners came out as black or magenta squares ("Error loading font texture"). There is now
+  room for 16,384, plus room for the extra terrain textures below. DirectX 11.
+- **No more grey terrain when you scroll.** The game kept terrain textures for under a third of a
+  Huge map and rebuilt the rest from grey as you scrolled, slowest in AI turns. Each map now gets
+  enough for all its tiles. It costs memory space: about 40-110 MB on a Huge map, 14 MB on maps
+  the game already covered. DirectX 11.
+- **About 100 MB more free memory from the start.** The opening movie's video player loaded about
+  75 MB of video and Direct3D 9 drivers that stayed for the whole session, and the game's script
+  and database heaps set aside 25 MB that nothing used.
+- **More free memory in long games.** The game's database memory now gives space back (74 MB more
+  free at 10 minutes in a test on a late Huge save), and the memory manager wastes less at the end
+  of its pages (31 MB less in a late game).
+- **One change you'll see: the opening movie and the Firaxis and 2K logos no longer play.** The
+  movie can't play without those drivers, so the fix never starts it. To see the movie again, set
+  `SkipIntroPlayer=0`.
+
+### Details
+
+- **Black icons: `TextureHandles`** (on by default; `TextureHandles=0` turns it off). Every texture
+  the game makes takes one of 12,288 handles, and the game keeps nearly all of them: every icon
+  atlas it loads stays. A big mod set on a Huge map at the highest terrain detail ran out at turn
+  ~132, and from then on new textures were blank (black or magenta squares on icons and city
+  banners, "Error loading font texture"). GPU Texture Decode and High Detail Strategic View use
+  more, which is likely why turning them off helped against the black squares. The fix moves the
+  per-texture records to a block of their own and grows the handle table in place to 16,384 handles,
+  rewriting the 102 references to the moved parts (found through the exe's relocations) and the
+  table's own offsets after checking every one. It costs 14.4 MB of address space. In game, with
+  that mod set and all three settings on, a save loaded with 12,991 textures (703 past the old
+  limit) and every icon was right. The log now also says when the table passes 90% and when it is
+  full. DirectX 11 exe only. A new test, `texhandlestest`, runs the game's own handle code, grown,
+  in a mapped copy of the exe.
+- **The texture table can now grow to 32,768** (`TextureHandles=16384` plus the 16,384 terrain
+  slots `TerrainBaseSlots` adds by default). None of the 124 instructions that index it squeezes
+  a handle into fewer bits, and `texhandlestest` now runs the game's handle code at both 16,384
+  and 32,768 handles.
+- **Grey terrain: `TerrainBaseSlots`** (on by default; `TerrainBaseSlots=0` turns it off). The game
+  keeps terrain textures for at most 3,072 map tiles (6,144 base textures, two per tile), 29% of a
+  10,752-tile Huge map. Scroll anywhere else and the tiles there are grey until the game rebuilds
+  them, 8 per frame: about a second for a screen, longer in slow AI turns. Now each map gets exactly
+  what it needs, two per tile that isn't deep water plus 64, up to `TerrainBaseSlots` (22528, enough
+  for any map): when the map has finished loading, the extra textures are made with the game's own
+  texture calls (0.3 s for 10,514 on that Huge map) and added to the map's free list. A map that
+  fits in the game's 6,144 makes none. Once every tile fits, the game's own idle pre-render textures
+  the whole map a few minutes after a load, and scrolling no longer shows grey: on that map the
+  tiles with textures went from 29% to 100%, and in a recording while scrolling across the map no
+  untextured tile came into view (before, up to 463 did). The cost is address space: on that save
+  553 MB were free at 10 minutes instead of 589 MB (and 480 MB in an earlier test that made them
+  during the load), plus 920 bytes per slot of the setting for the bigger texture table (14.4 MB at
+  22528) and 43 KB of video memory per texture made. If a long Huge game gets near the low-memory
+  warning, a lower `TerrainBaseSlots` gives some of it back. DirectX 11 exe only. A first version
+  changed the game's texture pool setup directly, and loading a save crashed: that code is covered
+  by one of Steam's 26 copy-protection checksums, whose result sizes per-thread arrays at map load.
+  The released version changes only code no checksum covers, plus the exe's `qsort` import (the
+  map's tile update sorts its tiles with it every frame, which is where the top-up happens). New
+  test: `terraintest`; new tool: `probe/cegall.py` lists the checksummed code.
+- **Startup memory: `SkipIntroPlayer` and smaller Lua and SQLite heaps** (on by default). Two
+  things the game loads at startup and never uses again:
   - **The intro movie's video player** (`SkipIntroPlayer=2`; 1 = only with the game's **Skip intro
-    video** on, 0 = off). The opening movie plays
-    through DirectShow with a DirectDraw renderer, and on Windows 10 and 11 DirectDraw runs on the
-    graphics card's Direct3D 9 driver. So the movie brings in DirectShow, the Windows Media
-    decoders, DirectDraw, Direct3D 7 and the Direct3D 9 driver (NVIDIA's `nvd3dum.dll` is a 65 MB
-    image), and they stay loaded with a driver thread for the rest of the session: about 75 MB of
-    address space, read from the loader's own load times (11.1-11.4 s, in the order the movie
-    loads them). The game's **Skip intro video** option doesn't avoid it: the game still starts the
-    movie and stops it after 8.5 seconds (the logos). Now the video player is never started: the
-    exe's `CoCreateInstance` import refuses the movie's one call, the game treats the movie as
-    finished (its own path for a PC without DirectShow), and startup goes straight on, with no
-    movie and no logos. The movie can't play without those drivers, so `SkipIntroPlayer=1` skips
-    the player only while **Skip intro video** is on, for players who want the movie. All three
-    exes.
+    video** on, 0 = off). The opening movie plays through DirectShow with a DirectDraw renderer, and
+    on Windows 10 and 11 DirectDraw runs on the graphics card's Direct3D 9 driver. So the movie
+    brings in DirectShow, the Windows Media decoders, DirectDraw, Direct3D 7 and the Direct3D 9
+    driver (NVIDIA's `nvd3dum.dll` is a 65 MB image), and they stay loaded with a driver thread for
+    the rest of the session: about 75 MB of address space, read from the loader's own load times
+    (11.1-11.4 s, in the order the movie loads them). The game's **Skip intro video** option doesn't
+    avoid it: the game still starts the movie and stops it after 8.5 seconds (the logos). Now the
+    video player is never started: the exe's `CoCreateInstance` import refuses the movie's one call,
+    the game treats the movie as finished (its own path for a PC without DirectShow), and startup
+    goes straight on, with no movie and no logos. The movie can't play without those drivers, so
+    `SkipIntroPlayer=1` skips the player only while **Skip intro video** is on, for players who want
+    the movie. All three exes.
   - **Room the game's Lua and SQLite heaps reserve up front** (with `LuaHeapMimalloc` /
     `DbHeapMimalloc`). The game makes its Lua heap with 20 MB committed at once and the database
     makes SQLite's with 5 MB; with both moved to mimalloc nothing uses that room (read in the game:
     both heaps 100% free). Each module's one `HeapCreate` call now makes a growable heap with
     nothing up front. `luaheaptest` checks it.
-
-- **No more grey terrain when you scroll, on maps up to Huge** (on by default; `TerrainBaseSlots=0`
-  turns it off). The game keeps terrain textures for at most 3,072 map tiles (6,144 base
-  textures, two per tile), 29% of a 10,752-tile Huge map. Scroll anywhere else and the tiles there
-  are grey until the game rebuilds them, 8 per frame: about a second for a screen, longer in slow AI
-  turns. Now each map gets exactly what it needs, two per tile that isn't deep water plus 64, up to
-  `TerrainBaseSlots` (22528, enough for any map): when the map has finished loading, the extra textures are
-  made with the game's own texture calls (0.3 s for 10,514 on that Huge map) and added to the
-  map's free list. A map that fits in the game's 6,144 makes none. Once every tile fits, the game's
-  own idle pre-render textures the whole map a few minutes after a load, and scrolling no longer
-  shows grey: on that map the tiles with textures went from 29% to 100%, and in a recording while
-  scrolling across the map no untextured tile came into view (before, up to 463 did). The cost is
-  address space: on that save 553 MB were free at 10 minutes instead of 589 MB (and 480 MB in an
-  earlier test that made them during the load), plus 920 bytes per slot of the setting for the bigger texture table (14.4 MB at 22528) and
-  43 KB of video memory per texture made. If a long Huge game gets near the low-memory warning, a
-  lower `TerrainBaseSlots` gives some of it back. DirectX 11 exe only. A first version changed the game's
-  texture pool setup directly, and loading a save crashed: that code is covered by one of Steam's
-  26 copy-protection checksums, whose result sizes per-thread arrays at map load. The released
-  version changes only code no checksum covers, plus the exe's `qsort` import (the map's tile
-  update sorts its tiles with it every frame, which is where the top-up happens). New test:
-  `terraintest`; new tool: `probe/cegall.py` lists the checksummed code.
-- **The texture table can now grow to 32,768** (`TextureHandles=16384` plus `TerrainBaseSlots`'
-  16,384 by default). None
-  of the 124 instructions that index it squeezes a handle into fewer bits, and `texhandlestest`
-  now runs the game's handle code at both 16,384 and 32,768 handles.
-- **Room for more textures: no more black icons in big modded games** (on by default;
-  `TextureHandles=0` turns it off). Every texture the game makes takes one of 12,288 handles, and
-  the game keeps nearly all of them: every icon atlas it loads stays. A big mod set on a Huge map
-  at the highest terrain detail ran out at turn ~132, and from then on new textures were blank
-  (black or magenta squares on icons and city banners, "Error loading font texture"). GPU Texture
-  Decode and High Detail Strategic View use more, which is likely why turning them off helped
-  against the black squares. The fix moves the per-texture records to a block of their own and
-  grows the handle table in place to 16,384 handles, rewriting the 102 references to the moved
-  parts (found through the exe's relocations) and the table's own offsets after checking every
-  one. It costs 14.4 MB of address space. In game, with that mod set and all three settings on, a
-  save loaded with 12,991 textures (703 past the old limit) and every icon was right. The log now
-  also says when the table passes 90% and when it is full. DirectX 11 exe only. A new test,
-  `texhandlestest`, runs the game's own handle code, grown, in a mapped copy of the exe.
 - **SQLite heap on mimalloc** (on by default; `DbHeapMimalloc=0` turns it off). The game
   database's SQLite memory lives in a Windows heap that keeps its load-time peak: 94 MB held for
   about 14 MB live after loading a large mod set. The option sends that heap's allocate, reallocate,

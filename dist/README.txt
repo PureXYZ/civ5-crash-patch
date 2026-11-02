@@ -1,4 +1,4 @@
-Civ V Crash Patch 1.2.1
+Civ V Crash Patch 1.3.0
 https://github.com/PureXYZ/civ5-crash-patch
 =============================================
 
@@ -39,7 +39,7 @@ INSTALL
 
 To check that it works: after you start the game, the game folder has a new folder called
 "civprobe". The first line of the newest events_....log file in it starts with
-"Civ V Crash Patch 1.2.1".
+"Civ V Crash Patch 1.3.0".
 
 
 UPDATE

@@ -9,7 +9,7 @@ late-game AI turns shorter.
 You install it by copying one file into the game folder. It doesn't change gameplay, rules, saves
 or mods, and it works with or without mods.
 
-> **Version 1.2.1.** Tested on a large Vox Populi + EUI game on a Huge map: the crashes went
+> **Version 1.3.0.** Tested on a large Vox Populi + EUI game on a Huge map: the crashes went
 > away, and free memory stayed level over a 49-minute session. Also tested on the unmodded game.
 > Please
 > [report how it goes](https://github.com/PureXYZ/civ5-crash-patch/issues), good or bad.
@@ -62,7 +62,7 @@ game can still get close to it. The fix writes a warning to its log when that ha
 
 Takes about two minutes.
 
-1. **Download** `CivVCrashPatch-1.2.1.zip` from the
+1. **Download** `CivVCrashPatch-1.3.0.zip` from the
    [latest release](https://github.com/PureXYZ/civ5-crash-patch/releases/latest) (under *Assets*).
 2. **Unzip it.** Right-click the zip, choose **Extract All…**, then **Extract**.
 3. **Open the game folder.** In Steam, go to **Library**, right-click
@@ -79,7 +79,7 @@ without it.
 
 After you start the game, a new folder named `civprobe` appears in the game folder. Open the
 newest `events_….log` file in it with Notepad. The first line should start with
-`Civ V Crash Patch 1.2.1`.
+`Civ V Crash Patch 1.3.0`.
 
 ### Update
 
