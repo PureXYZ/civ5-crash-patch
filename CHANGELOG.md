@@ -36,7 +36,7 @@
   shows grey: on that map the tiles with textures went from 29% to 100%, and in a recording while
   scrolling across the map no untextured tile came into view (before, up to 463 did). The cost is
   address space: on that save 553 MB were free at 10 minutes instead of 589 MB (and 480 MB in an
-  earlier test that made them during the load), plus 920 bytes per slot of the setting for the bigger texture table (15 MB at 22528) and
+  earlier test that made them during the load), plus 920 bytes per slot of the setting for the bigger texture table (14.4 MB at 22528) and
   43 KB of video memory per texture made. If a long Huge game gets near the low-memory warning, a
   lower `TerrainBaseSlots` gives some of it back. DirectX 11 exe only. A first version changed the game's
   texture pool setup directly, and loading a save crashed: that code is covered by one of Steam's

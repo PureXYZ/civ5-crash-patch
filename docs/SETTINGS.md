@@ -300,7 +300,12 @@ records (920 bytes each) to a block of their own, 14.4 MB of address space at 16
 table in place, after checking the game's code byte for byte. The `texhandles:` line of each
 report shows the handles in use, and the log says when the table passes 90% and when it is full.
 DirectX 11 exe only for now. `TerrainBaseSlots` adds its slots past 6,144 to this number by itself, so
-by default the table holds 32,768 (28.8 MB of records).
+by default the table holds 32,768 (28.8 MB of records), and the textures that aren't terrain keep
+at least 10,240 whatever the map. Because the table grows and shrinks with `TerrainBaseSlots`, a
+lower `TerrainBaseSlots` alone leaves the other textures the same room. To give them more, set
+`TextureHandles=32768`: the table then stays at its most, and each terrain slot less is one more
+for everything else. Lowering the game's terrain detail doesn't free any on a big map while
+`TerrainBaseSlots` is on, because every tile still gets its two textures.
 
 **`TerrainBaseSlots`.** Every land or shallow-water tile of the map needs two base textures before
 it is drawn, and the game has 6,144 of them: 3,072 tiles. That is under half of a Huge map (8,297
@@ -321,7 +326,7 @@ The cost is address space: the Direct3D runtime and driver's share of each textu
 handle record. With the 10,514 made for that Huge map, 553 MB were free at 10 minutes instead of
 589 MB on the same save (480 MB in an earlier test that made them during the load), so about
 40-110 MB on a Huge map. The bigger texture table also takes 920 bytes per
-slot of the setting past 6,144, made or not (15 MB at 22528). And each texture made takes 43 KB of
+slot of the setting past 6,144, made or not (14.4 MB at 22528). And each texture made takes 43 KB of
 video memory. Late in a long game on a Huge map that address space can matter: watch the
 `memory (10 min)` lines, and set a lower number if they drop toward the 200 MB warning (the map
 then keeps only part of its tiles textured, still far more than the game's). The game's texture

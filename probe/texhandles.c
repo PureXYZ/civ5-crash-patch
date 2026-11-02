@@ -43,6 +43,13 @@
 // 32,768 by default; with 16,700 slots the same save ran with 23,590 handles in use, terrain and
 // icons right (session 20261101_225853).
 //
+// Most of these places lie in code that one of Steam's CEG checks CRCs (exe+0x2be0c0's ranges, as
+// does cmdstream's exe+0x4ce1e8; cegall.py), against the rule that new code changes stay outside
+// every checked range. That check's result becomes the back-buffer format at device creation
+// (exe+0x4c82b0: 0x101/0x102 = R8G8B8A8, anything else is used as is), so a mismatch would most
+// likely stop the game drawing at all; it starts and draws normally with these changes, so the
+// check evidently doesn't see them (RESEARCH-NOTES, "First version: the pool setup patched").
+//
 // With or without the option, the sampler logs when the table passes 90% and when it is full, and
 // texhandles_report() logs how many handles are in use.
 #define WIN32_LEAN_AND_MEAN

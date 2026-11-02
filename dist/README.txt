@@ -21,6 +21,11 @@ to that. A few bugs in the game waste memory or corrupt it when the game is busy
 It doesn't change gameplay, rules, saves or mods. It works in every mode Steam offers when
 you start the game: DirectX 11, DirectX 9 and tablet.
 
+One change you'll see: the opening movie and logos no longer play. The movie's video player
+loads about 75 MB of drivers that stay for the whole session, so the fix never starts it.
+To see the movie again, set SkipIntroPlayer=0 in the settings file (optional\civprobe.ini,
+below).
+
 
 INSTALL
 -------

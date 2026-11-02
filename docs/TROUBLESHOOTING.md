@@ -65,15 +65,26 @@ those too.
 Common with EUI, Vox Populi and other big mod sets in DirectX 11. The game can hold only 12,288
 textures and keeps nearly every one it loads; once that's full, new icons come out black or
 magenta, and you may see "Error loading font texture". **GPU Texture Decode**, **High Detail
-Strategic View** and the highest terrain detail fill it sooner. The fix makes room for 16,384 in
-DirectX 11, which was enough for a big mod set on a Huge map with all three on.
+Strategic View** and the highest terrain detail fill it sooner. In DirectX 11 the fix makes the
+table bigger: icons and everything else that isn't terrain get at least 10,240 textures, 4,096 more
+than the game leaves them at the highest terrain detail. That was enough for a big mod set on a
+Huge map with all three on.
 
 If you still see them, the events log in the `civprobe` folder says `the texture table is full`.
-Then open **Options → Video Options** in the game and do one of these, then restart the game:
+Then do one of these, and restart the game:
 
-- Lower **Terrain Detail Level** one step from the highest. That alone frees about 2,000
-  textures. (In `GraphicsSettingsDX11.ini` it's `TerrainDetailLevel = 2` instead of 3.)
-- Turn off **GPU Texture Decode** and **High Detail Strategic View**.
+- In the game, open **Options → Video Options** and turn off **GPU Texture Decode** and
+  **High Detail Strategic View**.
+- Give the terrain a smaller share of the table. In `civprobe\civprobe.ini`, set
+  `TextureHandles=32768` (the most, which keeps the table at full size) and a lower
+  `TerrainBaseSlots`, for example 14000 ([Settings](SETTINGS.md#more-textures-on-by-default)).
+  Each slot less is one more texture for icons and the rest, and part of a big map turns grey
+  again when you scroll far. A lower `TerrainBaseSlots` alone doesn't help, because the table
+  shrinks with it.
+
+Lowering **Terrain Detail Level** doesn't free textures on a big map while `TerrainBaseSlots` is
+on: the fix still gives every tile its two terrain textures. With `TerrainBaseSlots=0` it frees
+about 2,000 (in `GraphicsSettingsDX11.ini` it's `TerrainDetailLevel = 2` instead of 3).
 
 ## Grey tiles when you scroll far across the map
 
@@ -83,7 +94,9 @@ shows no grey. Grey right after loading is that pass still running. The game its
 textures for at most 3,072 tiles, under half of a Huge map, and rebuilds the rest from grey
 whenever you scroll to them.
 
-That costs address space, the game's scarcest resource: about 40-110 MB on a Huge map (a map that fits in the game's 3,072 tiles makes none). If the `memory (10 min)` lines in
+That costs address space, the game's scarcest resource: about 40-110 MB on a Huge map. A map
+that fits in the game's 3,072 tiles makes no extra textures, and costs only the bigger texture
+table's 14 MB. If the `memory (10 min)` lines in
 the log get near the 200 MB warning late in a long game, set a lower `TerrainBaseSlots` in
 `civprobe\civprobe.ini`, for example 14000: the map then keeps part of its tiles textured, still far
 more than the game does. `TerrainBaseSlots=0` turns it off

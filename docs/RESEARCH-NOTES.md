@@ -2112,6 +2112,17 @@ references and cmdstream's changed code at exe+0x4ce1e8), so what a check's resu
 none was in exe+0x2d00f0's. Lesson: run cegall.py on any new code change and keep it outside every
 checked range.
 
+What exe+0x2be0c0 feeds (2026-11-02 audit): its one caller, exe+0x238256 in the renderer setup,
+stores the result in the device parameters, and exe+0x4c82b0 turns that field into the back-buffer
+format: 0x101 or 0x102 gives R8G8B8A8_UNORM (0x1c), anything else is used as the format itself. A
+wrong CRC there would most likely leave the game without a swap chain, yet the game starts and
+draws normally with cmdstream's change (since 1.0.0) and most of `TextureHandles`' changed operands
+and references in those ranges. So that check evidently doesn't see them, or folds a mismatch back
+onto 0x101/0x102. That's unproven: the check functions can't be run outside the game, because they
+jump to absolute addresses that the exe's Steam entry stub sets up (a mapped copy faults at
+0x791d76). cmdstream and `TextureHandles` predate the lesson above and are its two exceptions,
+kept on that evidence; new changes still go outside every range.
+
 ### Second version (terrain.c)
 
 The init and its call (exe+0x76967, also checked) are left alone. The hand-over's count read

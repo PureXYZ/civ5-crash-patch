@@ -40,12 +40,17 @@ busy turns, right after loading a big save, or late in a long session.
 | **Slow AI turns.** Most of a late-game AI turn is the game waiting on itself, not the AI thinking. | Late-game AI turns of a minute or more. In testing they went from about 65-70 s to about 45-50 s (with one Vox Populi option, see [tips](docs/TROUBLESHOOTING.md#ai-turns-are-slow)). |
 | **Hitches while you pan the map during AI turns.** Some screen panels (and mods such as Global Relations) redraw every time the AI changes something. | The map stutters or freezes for a moment while you scroll during AI turns. |
 | **Black icons in big modded games.** The game can hold only 12,288 textures and keeps nearly every one it loads. Big mod sets fill that, sooner with GPU Texture Decode and High Detail Strategic View. The fix makes room for 16,384 (DirectX 11). | Black or magenta squares on icons and city banners, "Error loading font texture". |
-| **Grey terrain when you scroll.** The game keeps terrain textures for under half of a Huge map and rebuilds the rest from grey. The fix gives each map enough for all its tiles (DirectX 11; about 40-110 MB of memory space on a Huge map, nothing on maps the game already covers). | Grey patches that fill in slowly after you scroll far, worst during AI turns. |
+| **Grey terrain when you scroll.** The game keeps terrain textures for under half of a Huge map and rebuilds the rest from grey. The fix gives each map enough for all its tiles (DirectX 11; about 40-110 MB of memory space on a Huge map, 14 MB on maps the game already covers). | Grey patches that fill in slowly after you scroll far, worst during AI turns. |
 
 All of them work in every mode the game offers: DirectX 11, DirectX 9 and tablet, except the
 texture fixes, which are DirectX 11 only for now. Some change
 exact places in the game, and each checks those places first; with a version of the game other
 than the final Steam one (1.0.3.279) they switch themselves off and say so in the log.
+
+**One change you'll see:** the opening movie and the Firaxis and 2K logos no longer play. The
+movie's video player loads about 75 MB of video and Direct3D 9 drivers that stay for the whole
+session, so the fix never starts it. To see the movie again, set `SkipIntroPlayer=0`
+([Settings](docs/SETTINGS.md#memory-savings-on-by-default)).
 
 **What it can't do:** nothing can raise the 4 GB limit of a 32-bit game, so a very large late
 game can still get close to it. The fix writes a warning to its log when that happens; see

@@ -333,8 +333,12 @@ The game code the fix relies on is the same in all three, with these exceptions:
   ([details](RESEARCH-NOTES.md#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01)).
 - **Black UI squares** on DX11 with EUI/VP: most likely the full texture table, which GPU texture
   decode and the HD strategic view fill sooner (a big mod set loaded with 12,991 textures with
-  both on). `TextureHandles` gives 4,096 more; if a game needs more than that, terrain detail one
-  step down (about 2,000 fewer) or those two settings off still help. The DirectX 9 and tablet exes keep the game's 12,288.
+  both on). By default the table holds 32,768 and the terrain gets at most 22,528 of them, so
+  everything else keeps at least 10,240, 4,096 more than the game leaves it at the highest terrain
+  detail. A game that needs more can turn those two settings off, or set `TextureHandles=32768`
+  (the table stays at its most) with a lower `TerrainBaseSlots`. Terrain detail one step down
+  frees nothing on a big map while `TerrainBaseSlots` is on, since every tile still gets its two
+  textures. The DirectX 9 and tablet exes keep the game's 12,288.
 
 ## Diagnostics
 
