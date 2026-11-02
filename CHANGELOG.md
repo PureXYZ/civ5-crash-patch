@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 ### What's new
+
+To update, close the game and copy the new `msimg32.dll` over the old one. Both changes below are
+on by default; you don't need the settings file.
 
 - **A warning in the game before memory runs out.** Nothing can raise the 4 GB limit of a 32-bit
   game, so a very large late game can still fill it. When less than 200 MB is left, the game now

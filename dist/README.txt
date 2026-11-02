@@ -1,4 +1,4 @@
-Civ V Crash Patch 1.3.0
+Civ V Crash Patch 1.4.0
 https://github.com/PureXYZ/civ5-crash-patch
 =============================================
 
@@ -11,6 +11,8 @@ to that. A few bugs in the game waste memory or corrupt it when the game is busy
 
   - stops crashes in busy turns and right after loading a big save
   - makes the game's memory last longer and cleans up memory it leaves behind
+  - warns you in the game when memory is nearly full, so you can save and restart
+    before it crashes
   - stops the crash when you quit
   - shortens AI turns and cuts hitches while you pan the map during them
   - makes room for more textures, so icons don't turn black in big modded games
@@ -39,7 +41,7 @@ INSTALL
 
 To check that it works: after you start the game, the game folder has a new folder called
 "civprobe". The first line of the newest events_....log file in it starts with
-"Civ V Crash Patch 1.3.0".
+"Civ V Crash Patch 1.4.0".
 
 
 GAME SETTINGS FOR BIG GAMES

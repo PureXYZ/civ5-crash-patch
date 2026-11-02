@@ -81,7 +81,7 @@ smaller fog buffers, which are DirectX 11 only.
 
 ## Install
 
-1. **Download** `CivVCrashPatch-1.3.0.zip` from the
+1. **Download** `CivVCrashPatch-1.4.0.zip` from the
    [latest release](https://github.com/PureXYZ/civ5-crash-patch/releases/latest) (under *Assets*).
 2. **Unzip it.** Right-click the zip, choose **Extract All…**, then **Extract**.
 3. **Open the game folder.** In Steam, go to **Library**, right-click
@@ -95,7 +95,7 @@ That's all. You don't need the settings file in the zip's `optional` folder.
 
 **Check that it's working.** After you start the game, a `civprobe` folder appears in the game
 folder. Open the newest `events_….log` in it with Notepad. The first line should start with
-`Civ V Crash Patch 1.3.0`.
+`Civ V Crash Patch 1.4.0`.
 
 **Update.** Close the game and copy the new `msimg32.dll` over the old one.
 
