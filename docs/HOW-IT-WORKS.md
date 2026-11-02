@@ -323,8 +323,10 @@ The game code the fix relies on is the same in all three, with these exceptions:
 - **GPU driver regions.** The Direct3D driver maps CPU-visible buffers into the game in 32 MB
   regions that the kernel creates and never gives back; late in a session they were the only thing
   still growing. They come from the game's per-frame buffer uploads. Trimming the device, splitting
-  uploads, GPU-only buffers and DXVK were all tried; none helped (see the
-  [research notes](RESEARCH-NOTES.md#conclusion-on-the-gpu-driver-regions-2026-10-30)).
+  uploads, GPU-only buffers, DXVK, an upload ring of our own and fewer frames in flight were all
+  tried; none helped (see the
+  [research notes](RESEARCH-NOTES.md#conclusion-on-the-gpu-driver-regions-2026-10-30) and the
+  [second try](RESEARCH-NOTES.md#gpu-driver-regions-second-try-an-upload-ring-of-our-own-2026-11-02)).
 - **The textures that keep a Huge map drawn cost address space** (about 40-110 MB, made when the
   map loads). Late in a long Huge game, a lower `TerrainBaseSlots` gives some back at the price of
   some grey again. Raising the page-in rate past the game's 8 a frame stranded tiles

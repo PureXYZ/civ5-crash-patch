@@ -47,7 +47,8 @@ In the order they happened:
    [GPU driver chunks](#the-growth-after-30-minutes-gpu-driver-chunks-the-dips-mimalloc-segment-churn-2026-10-30) ·
    [The event queue overflow](#the-load-crashes-were-the-games-event-queue-overflowing-2026-10-30-0500) ·
    [Lua heap on mimalloc](#lua-heap-on-mimalloc-works-session-20261030_113554-144-min-clean-with-map-grid-v3) ·
-   [Conclusion on the GPU regions](#conclusion-on-the-gpu-driver-regions-2026-10-30)
+   [Conclusion on the GPU regions](#conclusion-on-the-gpu-driver-regions-2026-10-30) ·
+   [Second try: an upload ring](#gpu-driver-regions-second-try-an-upload-ring-of-our-own-2026-11-02)
 9. **Grey terrain tiles.**
    [Page-in rate and texture pool](#grey-tiles-after-scrolling-far-2026-10-30-terrain-page-in-and-base-texture-pool) ·
    [The whole map in the pool, and Steam's CEG](#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01)
@@ -2256,7 +2257,8 @@ render anyway.
 ### What's left, largest first
 
 - **GPU driver regions**: 115-226 MB only reserved inside the driver's 32 MB regions. Closed
-  (see above): the driver's own pooling.
+  (see above): the driver's own pooling. A second try, an upload ring of our own, made it worse
+  ([below](#gpu-driver-regions-second-try-an-upload-ring-of-our-own-2026-11-02)).
 - **Leader-head texture data**: ~140 MB of CPU copies (CvLeaderHeadTextureManager), loaded at save
   load. `LeaderTextureReduction` in GraphicsSettingsDX11.ini is the user-side lever (smaller
   leader textures).
@@ -2265,3 +2267,80 @@ render anyway.
   `MaxSimultaneousThreads` sets how many there are.
 - **NVIDIA's 128 MB reservation** (NvMemMapStorage, nothing committed): the driver's.
 - **mimalloc's own overhead**: ~80 MB (8%).
+
+## GPU driver regions, second try: an upload ring of our own (2026-11-02)
+
+The user asked for another attempt at the space only reserved in the driver's 32 MB regions.
+
+- **What that space is** (VA maps of session 20261102_003143, current defaults: 9 regions, ~153 MB
+  mapped, ~135 MB only reserved, flat from 20 to 40 minutes). By caching: the write-combined
+  (0x404) regions held 44 MB in 4 regions, with 84 MB of irregular holes (up to 8 MB); the cached
+  ones held 109 MB in 5, with 51 MB reserved, mostly a 128 KB gap after nearly every piece. Three
+  regions with 6-9 MB in use each kept their 32 MB.
+- **It turns over within minutes.** Between the 10- and 20-minute maps almost no committed piece is
+  the same (region 0xb4fa0000: 2.8 MB kept, 25.9 MB gone, 22.8 MB new). The holes are the
+  fragmentation of a busy allocator, and a region stays while anything at all lives in it.
+- **The local harness** (scratchpad ringtest.c) still doesn't reproduce the game's ~1 driver
+  allocation per buffer update. It did show NVIDIA's write-combined memory growing from GPU copies
+  alone: 283 small CopySubresourceRegion calls a frame grew it to 107 MB (821 allocations of
+  ~128 KB, ~100 a second, then a cap), the same with 1, 2 or 3 frames in flight.
+- **gpuring.c (`GpuUploadRing=8`):** UpdateSubresource hot-patched in d3d11.dll (as d3dstats.c).
+  Plain DEFAULT buffers updated on the game's immediate context (the pointer at exe+0x2c10584) were
+  copied into the next free part of one 8 MB DYNAMIC vertex buffer (Map WRITE_NO_OVERWRITE, 64
+  event queries as fences), then CopySubresourceRegion into the game's buffer; anything else, or an
+  upload that didn't fit, went to D3D11's own. On the real driver (gpuringtest.c: 160 in-use
+  buffers of 1 byte to 5 MB, whole and byte-box updates, wraps, a deferred context, a second
+  device, a constant buffer and a raw buffer left to D3D11): 1,120 readbacks, 0 mismatches.
+- **In game (session 20261102_012155, 19 min, clean, with GpuWatch=1):** 11,444 uploads (3.3 GB)
+  went through the ring, 417 wraps, 808 (740 MB) left to D3D11 with the ring full, and the index
+  buffer update site was gone from the allocation stacks. The driver made 40 allocations a second
+  (24,008 in 10 min), its top callers now the game's Map(WRITE_DISCARD) sites (sampled stacks at
+  10 min: exe+0x4c4e3e 170, exe+0x4c1319 198, exe+0x4c13d8 78). The last GpuWatch session before,
+  100718 (25 a second; 23, 32, 22), was a different save and mod set, so those two can't be
+  compared. The regions can (same save and mods), and the write-combined ones got worse:
+
+  | Session | WC regions | used | only reserved | cached regions | used | only reserved |
+  |---|---|---|---|---|---|---|
+  | 233101, 10 / 20 min | 4 / 3 | 57 / 53 MB | 71 / 43 MB | 5 / 5 | 116 / 115 MB | 44 / 45 MB |
+  | 003143, 10 / 20 min | 3 / 4 | 42 / 44 MB | 54 / 84 MB | 5 / 5 | 115 / 109 MB | 45 / 51 MB |
+  | 012155 (ring), 10 min / exit | 5 / 5 | 44 / 44 MB | 116 / 116 MB | 5 / 6 | 115 / 120 MB | 45 / 72 MB |
+
+  11 regions at exit and 188 MB only reserved, the most of any recent session. One session each,
+  so some of it may be the session, but every baseline had 3-4 write-combined regions. The ring
+  itself was a separate 8 MB block, not in the regions.
+- **Why it couldn't help:** the write-combined memory is mostly the driver's copies of the game's
+  dynamic buffers. The game discards ~850 MB of them a second (256 GB of buffer size in 300 s,
+  session 124828), ~14 MB a frame, against ~6 MB a second of buffer updates. The ring took most
+  of the small part; 44 MB stayed in use either way. And the regions are made at the peak (the
+  load: 3 -> 7 between 161 and 183 s) and then stay, each held by a few 3-4.5 MB pieces: at
+  10 min the five write-combined regions held 7-14 MB each, with holes of up to 17 MB. The big
+  updates that come at those peaks (808, ~0.9 MB each) still went to the driver, the ring full.
+- Removed from the tree (gpuring.c, gpuringtest.c and the wiring diff are in the session
+  scratchpad, gpuring-removed); the game folder is back on the previous build and ini (the test DLL
+  kept as `msimg32.gpuring-20261102.dll`).
+- **What's left are the game's own discard maps** (exe+0x4c1319, exe+0x4c13d8, exe+0x4c4e3e, in the
+  render path). Turning those into appends to one buffer would mean changing the game's render
+  code and its draw offsets. Not attempted.
+- **Frames in flight.** The driver keeps a copy of a discarded buffer for every frame the GPU
+  hasn't finished. Scratchpad discardlat.c, the game's discard pattern (a 3 MB vertex
+  buffer and a 0.9 MB index buffer mapped twice a frame, eight 256 KB shader-resource buffers,
+  ~16% written, each read by the GPU), 1,000 frames: write-combined memory +8 / +16 / +25 MB
+  with 1 / 2 / 3 frames in flight (15 / 28 / 41 allocations), the same with the GPU busy or idle.
+  D3D11's default is 3. At the game's ~14 MB a frame, 1 frame in flight could mean ~20-30 MB less
+  of it and one or two fewer regions. Tried with no code first: NVIDIA's "Low Latency Mode" On
+  for the game (1 frame queued).
+- **In game (session 20261102_015036, 11.5 min, clean, Low Latency Mode On), at 10 min:** 8
+  regions, 173 MB mapped, 83 MB only reserved; write-combined 3 regions, 51 MB used, 45 MB
+  unused; cached 5, 122 MB used, 38 MB unused; 629 MB free. The four sessions before on the same
+  save and mods (215143, 225853, 233101, 003143): 8-9 regions, 99-116 MB only reserved;
+  write-combined 3-4 regions, 42-59 MB used, 54-71 MB unused; 480-614 MB free. The least held of
+  the five, but inside their spread (003143 also had 8 and 3), and the write-combined memory in
+  use didn't drop the way the test predicted. Most likely the game has about one frame in flight
+  anyway: it is CPU-bound, the GPU finishes each frame long before the next is submitted, while
+  the test's CPU raced ahead. So no SetMaximumFrameLatency in the probe.
+- **Where that leaves it:** what is in the write-combined regions is the driver's per-frame
+  copies, already at about one frame, plus its own command buffers (ringtest.c: up to ~100 MB
+  of write-combined memory for GPU commands alone); what is held beyond that is how the kernel
+  packs them, set at the load's peak. Nothing outside the game's render code changes either. The
+  regions are closed for good; the larger leads are the leader-head texture copies (~140 MB) and
+  the fluid particle pools (~80 MB committed, unused).
