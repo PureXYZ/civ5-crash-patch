@@ -75,7 +75,8 @@ If you still see them, the events log in the `civprobe` folder says `the texture
 Then do one of these, and restart the game:
 
 - In the game, open **Options → Video Options** and turn off **High Detail Strategic View**.
-- Give the terrain a smaller share of the table. In `civprobe\civprobe.ini`, set
+- Give the terrain a smaller share of the table. In the
+  [settings file](SETTINGS.md#using-a-settings-file), set
   `TextureHandles=32768` (the most, which keeps the table at full size) and a lower
   `TerrainBaseSlots`, for example 14000 ([Settings](SETTINGS.md#more-textures-on-by-default)).
   Each slot less is one more texture for icons and the rest, and part of a big map turns grey
@@ -101,9 +102,9 @@ whenever you scroll to them.
 That costs address space, the game's scarcest resource: about 40-110 MB on a Huge map. A map
 that fits in the game's 3,072 tiles makes no extra textures, and costs only the bigger texture
 table's 14 MB. If the `memory (10 min)` lines in
-the log get near the 200 MB warning late in a long game, set a lower `TerrainBaseSlots` in
-`civprobe\civprobe.ini`, for example 14000: the map then keeps part of its tiles textured, still far
-more than the game does. `TerrainBaseSlots=0` turns it off
+the log get near the 200 MB warning late in a long game, set a lower `TerrainBaseSlots` in the
+[settings file](SETTINGS.md#using-a-settings-file), for example 14000: the map then keeps part
+of its tiles textured, still far more than the game does. `TerrainBaseSlots=0` turns it off
 ([Settings](SETTINGS.md#more-textures-on-by-default),
 [details](RESEARCH-NOTES.md#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01)).
 
@@ -179,11 +180,10 @@ more than DirectX 11), and the game as shipped crashed.
 
 This hasn't been seen in testing, but the faster AI turns work through the AI's updates faster
 than the game normally does, and some screen panels redraw a little less often. If something on
-screen looks stale after an AI turn, add these lines to a settings file (see
-[Settings](SETTINGS.md#using-a-settings-file)) and restart the game:
+screen looks stale after an AI turn, add these two lines at the end of the
+[settings file](SETTINGS.md#using-a-settings-file) and restart the game:
 
 ```ini
-[probe]
 UiQueuePasses=1
 UiDirtyCoalesceMs=0
 ```
@@ -224,13 +224,13 @@ unnecessary ([Black squares](#black-squares-on-icons-or-city-banners)).
 
 ## Turning the fix off to compare
 
-To check whether a problem comes from the fix, you don't have to uninstall it. Put a settings
-file in the `civprobe` folder (see [Settings](SETTINGS.md#using-a-settings-file)) with:
+To check whether a problem comes from the fix, you don't have to uninstall it. Add this line at
+the end of the [settings file](SETTINGS.md#using-a-settings-file):
 
 ```ini
-[probe]
 Enabled=0
 ```
 
-The DLL then does nothing but pass calls through to Windows' own `msimg32.dll`. Delete the line (or set `Enabled=1`) to turn it back on. Each
+The DLL then does nothing but pass calls through to Windows' own `msimg32.dll`, and writes no log.
+Delete the line (or set `Enabled=1`) to turn it back on. Each
 part can also be turned off on its own; [Settings](SETTINGS.md) lists them.

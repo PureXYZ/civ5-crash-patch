@@ -6,7 +6,8 @@
 // system DLL and, inside Civ V only, runs a low-priority sampler thread. On by default:
 // the render command stream fix (cmdstream.c), the Miles sample-handle guard
 // (audioguard.c), the quit-crash guard (luaguard.c), the Lua GC fix (luagc.c) and mimalloc
-// for the small CRT allocations (mialloc.c). Everything else is opt-in in civprobe.ini:
+// for the small CRT allocations (mialloc.c). Everything else is opt-in in civprobe.ini (next
+// to the DLL, else in <game dir>\civprobe\):
 // telemetry files (Telemetry=1), allocation tracking (alloctrack.c), top-down placement and
 // the reservation log (topdown.c) and the watchpoint (watch.c).
 //
@@ -988,13 +989,19 @@ static void start_probe(void)
     lstrcpyW(g_dir, exe);
     WCHAR *slash = wcsrchr(g_dir, L'\\');
     if (slash) *slash = 0;
-    lstrcatW(g_dir, L"\\civprobe");
-    CreateDirectoryW(g_dir, NULL);
-
-    WCHAR ini[MAX_PATH];
+    // Settings: civprobe.ini next to the DLL (the game folder), else the one in the civprobe
+    // folder, the only place older versions read.
+    WCHAR ini[MAX_PATH], inner[MAX_PATH];
     _snwprintf(ini, MAX_PATH, L"%s\\civprobe.ini", g_dir);
     ini[MAX_PATH - 1] = 0;
-    if (!GetPrivateProfileIntW(L"probe", L"Enabled", 1, ini)) return;
+    lstrcatW(g_dir, L"\\civprobe");
+    CreateDirectoryW(g_dir, NULL);
+    _snwprintf(inner, MAX_PATH, L"%s\\civprobe.ini", g_dir);
+    inner[MAX_PATH - 1] = 0;
+    int iniBeside = GetFileAttributesW(ini) != INVALID_FILE_ATTRIBUTES;
+    int iniInner = GetFileAttributesW(inner) != INVALID_FILE_ATTRIBUTES;
+    if (!iniBeside) lstrcpyW(ini, inner);
+    if (!settings_enabled(ini)) return;
     g_intervalMs = GetPrivateProfileIntW(L"probe", L"IntervalMs", 2000, ini);
     if (g_intervalMs < 250) g_intervalMs = 250;
     if (g_intervalMs > 60000) g_intervalMs = 60000;  // also the freeze watchdog's and the guards' tick
@@ -1063,6 +1070,7 @@ static void start_probe(void)
     log_event("proxying %ls (real copy %s); interval=%lums periodicSnapshot=%lumin HeapSummary=%s",
               PROXY_DLL, g_realDll ? "loaded" : "MISSING", g_intervalMs, g_periodicSnapshotMin,
               pHeapSummary ? "yes" : "no");
+    settings_report(ini, iniBeside, iniInner);
 
     modules_init();
     lastrun_init(g_dir, ini);

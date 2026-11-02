@@ -25,19 +25,22 @@ Requires the Windows Steam version of Civ V, version 1.0.3.279 (the final update
    **Continue**.
 5. Start the game. When Steam asks how to launch it, choose **DirectX 11**.
 
-You don't need the settings file in the zip's `optional` folder.
+You don't need the settings file in the zip's `optional` folder. It's only for changing settings
+([Settings](docs/SETTINGS.md)).
 
 ### Check that it's working
 
 Start the game. A `civprobe` folder appears in the game folder. Open the newest `events_….log` in
-it with Notepad. The first line should start with `Civ V Crash Patch 1.4.0`.
+it with Notepad. The first line should contain `Civ V Crash Patch 1.4.0`.
 
 ### Update or uninstall
 
-To update, close the game and copy the new `msimg32.dll` over the old one.
+To update, close the game and copy the new `msimg32.dll` over the old one. Then start the game and
+check the newest log's first line for the new version.
 
-To uninstall, delete `msimg32.dll` (and the `civprobe` folder, if you like). Nothing else was
-changed. Steam's *Verify integrity of game files* doesn't remove extra files, so delete it yourself.
+To uninstall, delete `msimg32.dll` (and `civprobe.ini` and the `civprobe` folder, if you like).
+Nothing else was changed. Steam's *Verify integrity of game files* doesn't remove extra files, so
+delete it yourself.
 
 ## What it fixes
 

@@ -16,19 +16,21 @@ diagnostics used to find the bugs.
 
 ## Using a settings file
 
-1. Start the game once with the fix installed, so the `civprobe` folder appears in the game folder.
-2. Create a text file named `civprobe.ini` in that folder. The release zip has a commented example
-   in `optional\civprobe.ini` that you can copy and edit.
-3. Put the settings you want to change under a `[probe]` line, one per line. `1` means on and `0`
-   off.
-4. Restart the game. Settings are read only when the game starts.
+1. Copy `optional\civprobe.ini` from the release zip into the game folder, next to `msimg32.dll`.
+2. Every setting in the file has a `;` in front, which turns the line off, so the file changes
+   nothing as it is. To change a setting, delete its `;` and edit the value: `;Telemetry=0`
+   becomes `Telemetry=1`. `1` means on and `0` off. Write numbers without commas or spaces
+   (`16384`, not `16,384`).
+3. Restart the game. Settings are read only when the game starts.
+4. To check, open the newest `events_….log` in the `civprobe` folder. Its `settings:` lines name
+   the file the game read and every setting that counts, and say why a line doesn't count (a
+   setting written twice, a second `[probe]` line, a word or a number with commas for a value).
 
-```ini
-[probe]
-Telemetry=1
-```
+Any setting you leave out keeps its default. To add a setting named on these pages, write it on a
+new line at the end of the file. Delete the file to go back to all defaults.
 
-Any setting you leave out keeps its default. Delete the file to go back to all defaults.
+Versions up to 1.4.0 read the file only from the `civprobe` folder. A file there still works, but
+one next to `msimg32.dll` takes its place.
 
 Parts that change exact places in the game work in the three exes of the final Steam version
 (1.0.3.279): `CivilizationV_DX11.exe`, `CivilizationV.exe` (DirectX 9) and

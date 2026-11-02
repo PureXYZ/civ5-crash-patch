@@ -237,3 +237,7 @@ void lastrun_init(const WCHAR *dir, const WCHAR *ini);  // after the events log 
 void topdown_init(const WCHAR *ini);
 void topdown_report(void);
 void topdown_drain(void);  // sampler thread: writes logged reservations
+
+// settings.c
+int settings_enabled(const WCHAR *ini);  // 0 only for Enabled=0
+void settings_report(const WCHAR *ini, int beside, int inner);  // after the events log is open

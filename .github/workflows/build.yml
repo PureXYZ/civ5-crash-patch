@@ -44,8 +44,8 @@ jobs:
         working-directory: probe/build
         run: |
           # streamtest and audiotest drive the stubs themselves (CommandStreamTestRets set, so
-          # nothing in the test exe is patched; audiotest also reads its SoundLog=1 log); sparetest
-          # writes its own ini for a child run.
+          # nothing in the test exe is patched; audiotest also reads its SoundLog=1 log); sparetest,
+          # hangtest and settingstest write their own ini for child runs.
           # mitest checks the mimalloc redirect (on by default) through msvcr90, like the game.
           # msgqueuetest, uiqueuetest, luaheaptest, texhandlestest, terraintest and fluidpooltest link
           # their module directly (no ini); the last three skip themselves without the game's exe.
@@ -60,6 +60,7 @@ jobs:
           ./CivilizationV_crttest.exe
           ./CivilizationV_lastruntest.exe
           ./CivilizationV_hangtest.exe
+          ./CivilizationV_settingstest.exe
           ./uiqueuetest.exe
           ./msgqueuetest.exe
           ./msgqueuetest.exe 1 2 1  # workers paused between header and payload
@@ -86,7 +87,9 @@ jobs:
           Copy-Item dist/civprobe.ini $d/optional/
           Copy-Item LICENSE $d/LICENSE.txt
           Copy-Item THIRD-PARTY-NOTICES.md $d/THIRD-PARTY-NOTICES.txt
-          Compress-Archive $d "$d.zip"
+          # The folder's files, not the folder: Extract All already makes a folder named after the
+          # zip, and one more level would hide msimg32.dll a folder deeper.
+          Compress-Archive "$d/*" "$d.zip"
           $dll = (Get-FileHash $d/msimg32.dll -Algorithm SHA256).Hash.ToLower()
           $zip = (Get-FileHash "$d.zip" -Algorithm SHA256).Hash.ToLower()
           Set-Content checksums.txt "$dll  msimg32.dll`n$zip  $d.zip"

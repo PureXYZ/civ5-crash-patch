@@ -25,8 +25,8 @@ you start the game: DirectX 11, DirectX 9 and tablet.
 
 One change you'll see: the opening movie and logos no longer play. The movie's video player
 loads about 75 MB of drivers that stay for the whole session, so the fix never starts it.
-To see the movie again, set SkipIntroPlayer=0 in the settings file (optional\civprobe.ini,
-below).
+To see the movie again, put the settings file (optional\civprobe.ini, see OTHER FILES below)
+in the game folder and change its ;SkipIntroPlayer=2 line to SkipIntroPlayer=0.
 
 
 INSTALL
@@ -39,8 +39,10 @@ INSTALL
 
 3. Start the game and choose DirectX 11 when Steam asks.
 
+You don't need optional\civprobe.ini. It's only for changing settings (see OTHER FILES below).
+
 To check that it works: after you start the game, the game folder has a new folder called
-"civprobe". The first line of the newest events_....log file in it starts with
+"civprobe". The first line of the newest events_....log file in it contains
 "Civ V Crash Patch 1.4.0".
 
 
@@ -61,12 +63,14 @@ The fix works with the game's settings as they are, but a few of them matter in 
 
 UPDATE
 ------
-Close the game and copy the new msimg32.dll over the old one.
+Close the game and copy the new msimg32.dll over the old one. Then start the game and check
+the newest log's first line for the new version (as in INSTALL).
 
 
 UNINSTALL
 ---------
-Delete msimg32.dll from the game folder (and the civprobe folder if you like).
+Delete msimg32.dll from the game folder (and civprobe.ini and the civprobe folder, if you
+like).
 Nothing else was changed.
 
 
@@ -90,8 +94,8 @@ https://github.com/PureXYZ/civ5-crash-patch/blob/main/docs/TROUBLESHOOTING.md
 
 OTHER FILES IN THIS ZIP
 -----------------------
-optional\civprobe.ini    Settings. Not needed. To use it, copy it into the civprobe folder
-                         inside the game folder. What each setting does:
+optional\civprobe.ini    Settings. Not needed. To use it, copy it into the game folder, next
+                         to msimg32.dll, and edit it there. What each setting does:
                          https://github.com/PureXYZ/civ5-crash-patch/blob/main/docs/SETTINGS.md
 LICENSE.txt              MIT license.
 THIRD-PARTY-NOTICES.txt  License of the included mimalloc library.

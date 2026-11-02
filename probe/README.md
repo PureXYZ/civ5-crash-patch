@@ -38,7 +38,8 @@ Build without `-s`: Defender's ML heuristic quarantined a stripped build (false 
 ## Tests
 
 Most tests are named `CivilizationV_*.exe` so the probe activates inside them. They load
-`build/msimg32.dll` and read `build/civprobe/civprobe.ini`. Run them from `probe/build`.
+`build/msimg32.dll` and read `build/civprobe/civprobe.ini` (a `build/civprobe.ini` would take its
+place). Run them from `probe/build`.
 
 **Self-checking, run in CI** (exit code 0 = pass; see
 [`build.yml`](../.github/workflows/build.yml) for the exact ini):
@@ -53,6 +54,7 @@ Most tests are named `CivilizationV_*.exe` so the probe activates inside them. T
 | `crttest` | Ends five children through each C runtime exit path (with `crttest_dll.dll`). |
 | `lastruntest` | Crashes a child and checks that the next launch appends Windows' record (or the "no event" line where error reporting is off) and leaves normal logs alone. About 75 s. |
 | `hangtest` | A child that stops taking window messages for 15 s; with the game's `lua51_Win32.dll` in `build/`, also one frozen inside a Lua database call (its Lua stack must be logged) and one whose Lua state reads as corrupt (must not crash). |
+| `settingstest` | Which `civprobe.ini` is read: four children of itself with the file next to the DLL, in `civprobe\`, in both (the one next to the DLL wins) and in neither, each checked through its `settings:` line and `IntervalMs`. |
 | `msgqueuetest` | The event-queue spill against a stand-in queue, posting from three threads. |
 | `uiqueuetest` | Handler thunks and merged records against a stand-in exe image. |
 | `luaheaptest` | The Lua heap wrappers, 4 threads. |
@@ -156,8 +158,10 @@ KnownDLL, and it loads.
   running game is unaffected and the next launch picks up the new build.
 - **Uninstall:** delete `msimg32.dll` from the game folder. Steam's "verify integrity" ignores
   extra files, so it won't remove it.
-- **Settings:** `<game folder>\civprobe\civprobe.ini`; every key is in
-  [Settings](../docs/SETTINGS.md).
+- **Settings:** `<game folder>\civprobe.ini`, next to the DLL. Without it, the probe reads
+  `<game folder>\civprobe\civprobe.ini`, the only place versions up to 1.4.0 read. The events log's
+  `settings:` lines name the file used and each setting that counts, and say why a line doesn't
+  (`settings.c`). Every key is in [Settings](../docs/SETTINGS.md).
 
 Hard-won rules for changes that touch the game:
 
