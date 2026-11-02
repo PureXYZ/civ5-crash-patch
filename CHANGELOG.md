@@ -9,6 +9,15 @@
   DLL's SQLite memory methods byte for byte. In one test on a late Huge save: 74 MB more free at
   10 minutes, no change in loading time. `luaheaptest` now drives both heaps and checks the
   installed database DLL when the game is present.
+- **Less memory lost at the end of mimalloc's pages.** mimalloc filled each 32 KB page with blocks
+  of one size and left the rest unused, which costs 6-12% for the 2.5-3.5 KB blocks the game uses a
+  lot: 31 MB in a late game. It also started each page's blocks at a multiple of the block size,
+  which cost a whole block per page for 3 and 3.5 KB blocks. Pages for 1-32 KB blocks are now 1 to
+  8 slices, sized to hold a whole number of blocks; blocks start at the alignment mimalloc actually
+  needs; and pages for blocks over 256 KB round up to 32 KB instead of 256 KB (a 256 KB Lua
+  request plus its 8-byte header took 512 KB). On the same late save, page-end waste fell from 31
+  to 3.6 MB and mimalloc's overhead (reserved minus live) from 132-141 MB to 106-113 MB at 10 and
+  20 minutes.
 
 ## 1.2.1
 

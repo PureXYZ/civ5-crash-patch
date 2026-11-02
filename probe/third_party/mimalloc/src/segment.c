@@ -349,9 +349,13 @@ static uint8_t* _mi_segment_page_start_from_slice(const mi_segment_t* segment, c
   // are aligned (see `mi_heap_malloc_aligned`).
   size_t start_offset = 0;
   if (block_size > 0 && block_size <= MI_MAX_ALIGN_GUARANTEE) {
-    // for small objects, ensure the page start is aligned with the block size (PR#66 by kickunderscore)
-    const size_t adjust = block_size - ((uintptr_t)pstart % block_size);
-    if (adjust < block_size && psize >= block_size + adjust) {
+    // civprobe: align the start to the largest power of two dividing the block size, not to the block
+    // size itself. That is all `mi_malloc_is_naturally_aligned` relies on (alignments are powers of two
+    // that divide the block size), and pages start on a slice, so a 3 KiB or 3.5 KiB block no longer
+    // loses a block's worth of each page to the adjustment.
+    const size_t align = block_size & (~block_size + 1);
+    const size_t adjust = align - ((uintptr_t)pstart % align);
+    if (adjust < align && psize >= block_size + adjust) {
       start_offset += adjust;
     }
   }
@@ -361,7 +365,7 @@ static uint8_t* _mi_segment_page_start_from_slice(const mi_segment_t* segment, c
   }
   start_offset = _mi_align_up(start_offset, MI_MAX_ALIGN_SIZE);
   mi_assert_internal(_mi_is_aligned(pstart + start_offset, MI_MAX_ALIGN_SIZE));
-  mi_assert_internal(block_size == 0 || block_size > MI_MAX_ALIGN_GUARANTEE || _mi_is_aligned(pstart + start_offset,block_size));
+  mi_assert_internal(block_size == 0 || block_size > MI_MAX_ALIGN_GUARANTEE || _mi_is_aligned(pstart + start_offset,block_size & (~block_size + 1)));
   if (page_size != NULL) { *page_size = psize - start_offset; }
   return (pstart + start_offset);
 }
@@ -1554,7 +1558,9 @@ static mi_page_t* mi_segments_page_alloc(mi_heap_t* heap, mi_page_kind_t page_ki
   mi_assert_internal(required <= MI_LARGE_OBJ_SIZE_MAX && page_kind <= MI_PAGE_LARGE);
 
   // find a free page
-  size_t page_size = _mi_align_up(required, (required > MI_MEDIUM_PAGE_SIZE ? MI_MEDIUM_PAGE_SIZE : MI_SEGMENT_SLICE_SIZE));
+  // civprobe: whole slices for every page; upstream rounds pages over 256 KiB up to 256 KiB, so a 260 KiB
+  // block (a 256 KiB Lua or SQLite request plus the probe's 8-byte header) took a 512 KiB page.
+  size_t page_size = _mi_align_up(required, MI_SEGMENT_SLICE_SIZE);
   size_t slices_needed = page_size / MI_SEGMENT_SLICE_SIZE;
   mi_assert_internal(slices_needed * MI_SEGMENT_SLICE_SIZE == page_size);
   mi_page_t* page = mi_segments_page_find_and_allocate(slices_needed, heap->arena_id, tld); //(required <= MI_SMALL_SIZE_MAX ? 0 : slices_needed), tld);
@@ -1665,6 +1671,26 @@ void _mi_segment_huge_page_reset(mi_segment_t* segment, mi_page_t* page, mi_bloc
 /* -----------------------------------------------------------
    Page allocation and free
 ----------------------------------------------------------- */
+// civprobe: the page size, in slices, for a small or medium block. Upstream uses one slice for small
+// blocks and 8 for medium ones, which leaves e.g. 2 KiB of each 32 KiB page unused for 2.5 or 3 KiB
+// blocks (~27 MB in a late Civ V game). mimalloc's block sizes are 1, 5, 3 or 7 times a power of two,
+// so a page of 1-8 slices nearly always fits them almost exactly: take the smallest one that holds
+// at least 8 blocks and leaves under 1/128 of it unused, else the least wasteful.
+static size_t mi_page_size_fitting(size_t block_size) {
+  const size_t max = MI_MEDIUM_PAGE_SIZE / MI_SEGMENT_SLICE_SIZE;
+  size_t k = (8 * block_size + MI_SEGMENT_SLICE_SIZE - 1) / MI_SEGMENT_SLICE_SIZE;
+  if (k < 1) k = 1;
+  if (k > max) k = max;
+  size_t best = k, best_waste = MI_MEDIUM_PAGE_SIZE;
+  for (; k <= max; k++) {
+    const size_t psize = k * MI_SEGMENT_SLICE_SIZE;
+    const size_t waste = psize % block_size;
+    if (waste * 128 <= psize) return psize;
+    if (waste * (best * MI_SEGMENT_SLICE_SIZE) < best_waste * psize) { best = k; best_waste = waste; }
+  }
+  return best * MI_SEGMENT_SLICE_SIZE;
+}
+
 mi_page_t* _mi_segment_page_alloc(mi_heap_t* heap, size_t block_size, size_t page_alignment, mi_segments_tld_t* tld) {
   mi_page_t* page;
   if mi_unlikely(page_alignment > MI_BLOCK_ALIGNMENT_MAX) {
@@ -1674,10 +1700,10 @@ mi_page_t* _mi_segment_page_alloc(mi_heap_t* heap, size_t block_size, size_t pag
     page = mi_segment_huge_page_alloc(block_size,page_alignment,heap->arena_id,tld);
   }
   else if (block_size <= MI_SMALL_OBJ_SIZE_MAX) {
-    page = mi_segments_page_alloc(heap,MI_PAGE_SMALL,block_size,block_size,tld);
+    page = mi_segments_page_alloc(heap,MI_PAGE_SMALL,mi_page_size_fitting(block_size),block_size,tld);
   }
   else if (block_size <= MI_MEDIUM_OBJ_SIZE_MAX) {
-    page = mi_segments_page_alloc(heap,MI_PAGE_MEDIUM,MI_MEDIUM_PAGE_SIZE,block_size,tld);
+    page = mi_segments_page_alloc(heap,MI_PAGE_MEDIUM,mi_page_size_fitting(block_size),block_size,tld);
   }
   else if (block_size <= MI_LARGE_OBJ_SIZE_MAX) {
     page = mi_segments_page_alloc(heap,MI_PAGE_LARGE,block_size,block_size,tld);

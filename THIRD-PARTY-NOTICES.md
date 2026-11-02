@@ -3,7 +3,8 @@
 ## mimalloc
 
 Version 2.5.2, vendored in `probe/third_party/mimalloc` (`include/`, `src/` and `LICENSE` only)
-and compiled into the DLL. It's on by default; `MiMalloc=0` turns it off.
+and compiled into the DLL. It's on by default; `MiMalloc=0` turns it off. `src/segment.c` has
+three changes, each marked `civprobe:`, that size pages to fit their blocks.
 https://github.com/microsoft/mimalloc
 
 ```
