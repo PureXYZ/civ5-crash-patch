@@ -13,8 +13,8 @@ $CC -O2 -DNDEBUG -DMI_STAT=1 -DMI_SKIP_COLLECT_ON_EXIT=1 -DMI_DEFAULT_DISALLOW_A
 MILIBS="-Ithird_party/mimalloc/include -lpsapi -lbcrypt -ladvapi32"
 # Version resource (Properties > Details) for both proxy DLLs.
 i686-w64-mingw32-windres version.rc -O coff -o build/version_res.o
-$CC $CFLAGS -o build/msimg32.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c intro.c exes.c build/mimalloc.o build/version_res.o proxy_msimg32.def $MILIBS
-$CC $CFLAGS -DPROXY_VERSION -o build/version.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c intro.c exes.c build/mimalloc.o build/version_res.o proxy_version.def $MILIBS
+$CC $CFLAGS -o build/msimg32.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c soundlog.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c intro.c exes.c build/mimalloc.o build/version_res.o proxy_msimg32.def $MILIBS
+$CC $CFLAGS -DPROXY_VERSION -o build/version.dll probe.c alloctrack.c topdown.c luagc.c luaguard.c mialloc.c watch.c cmdstream.c audioguard.c soundlog.c modules.c crtfail.c lastrun.c hang.c coretick.c smallblock.c uiqueue.c mapgrid.c gpuwatch.c msgqueue.c luaheap.c d3dstats.c texhandles.c terrain.c intro.c exes.c build/mimalloc.o build/version_res.o proxy_version.def $MILIBS
 $CC -O2 -Wall -municode -static -s -Wl,--large-address-aware     -o build/CivilizationV_probetest.exe harness.c -lversion -lmsimg32 -lgdi32
 # Allocation-tracking tests (run with AllocCrt=ucrtbase.dll in civprobe.ini).
 $CC -O2 -fomit-frame-pointer -Wall -static -Wl,--large-address-aware -o build/CivilizationV_alloctest.exe alloctest.c -lmsimg32 -lgdi32

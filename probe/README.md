@@ -46,7 +46,7 @@ Most tests are named `CivilizationV_*.exe` so the probe activates inside them. T
 | Test | Checks |
 |---|---|
 | `streamtest` | The command stream's record, counter and constructor stubs. Needs `CommandStreamTestRets` set to anything. |
-| `audiotest` | The audio guard, with the fake `mss32.dll`. Needs `CommandStreamTestRets` too. |
+| `audiotest` | The audio guard and the sound log, with the fake `mss32.dll`. Needs `CommandStreamTestRets` set too, and `SoundLog=1`. |
 | `sparetest` | The spare halves (writes its own ini). |
 | `mitest` | The mimalloc redirect, with `mitest_dll.dll`; msvcr90 and msvcp90 are bound by its manifest. |
 | `stacktest` | Crashes three children of itself and checks their `stack:` lines (with `stacktest_dll.dll`). |
@@ -121,6 +121,7 @@ build/CivilizationV_probetest.exe "C:\Program Files (x86)\Steam\steamapps\common
 | `watch.c` | Page-protection watchpoint | off |
 | `gpuwatch.c` | Which game code maps the GPU driver's memory regions | off |
 | `d3dstats.c` | Counts the game's D3D11 uploads, maps and buffer creation | off |
+| `soundlog.c` | Every sound the game starts, with its file name (`sounds_<session>.log`) | off |
 | **Other** | | |
 | `version.h`, `version.rc` | Release version and the DLL's version resource | |
 | `third_party/mimalloc/` | mimalloc 2.5.2 (`include/`, `src/`, `LICENSE` only) | |
@@ -193,6 +194,7 @@ Python).
 | `resdiff.py <reserves csv> [--from S] [--to S] [--at S] [--frames N]` | Regions reserved in a time window that are still held, grouped by the first non-system frames. |
 | `resspikes.py <reserves csv> [--min-kb N] [--max-s S] [--from S] [--frames N] [--placed]` | Regions released again within a few seconds, for brief free-space dips (`--placed`: only those reserved at a chosen address). |
 | `portmap.py <DX11 exe> <other exe> [--objdump PATH] [--only NAMES] [--extra RVAS]` | Finds the DX11 addresses of `exes.c` in another build of the exe: code by the DX11 instructions around it (relocated dwords and branch displacements masked, decoded with LLVM-MinGW's `llvm-objdump`), data by the instructions that reference it. Prints how each was found; a few need checking by hand (see `exes.c`). |
+| `soundnames.py <sounds log> <game folder> [--mods DIR] [--top N] [--from S] [--to S]` | Names the sounds in a `SoundLog=1` log by their size (loose sound files and `*Sound*.fpk` packs), and lists the most started and the starts per 5 s. |
 | `cegall.py <exe> [0xRVA[:len] ...] [--list]` | The code ranges Steam's CEG checksums (the `mov eax, fn; call eax; ret` checks), and whether the given places are inside one. Run it on any new code change: one inside exe+0x2d00f0's ranges crashed map loads. |
 
 ## Diagnostic modes

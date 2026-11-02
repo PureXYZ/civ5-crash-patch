@@ -135,6 +135,7 @@ static volatile LONG g_seenCount;
 /* ------------------------------------------------------------------ */
 
 static double now_s(void) { return (GetTickCount64() - g_t0) / 1000.0; }
+double log_time_s(void) { return now_s(); }
 
 void write_all(HANDLE h, const char *buf, int len)
 {
@@ -939,6 +940,7 @@ static DWORD WINAPI sampler(LPVOID unused)
             terrain_report();
             watch_report();
             cmdstream_report();
+            soundlog_report();
         }
         // Transient spikes (e.g. creating a game) are freed again within a minute, and the
         // rolling "latest" report misses them. Keep one report taken at the highest point.
@@ -1087,6 +1089,7 @@ static void start_probe(void)
     watch_init(ini);
     cmdstream_init(ini);
     audioguard_init(ini);
+    soundlog_init(ini);  // wraps the audio guard's thunks
     coretick_init(ini);
     smallblock_init(ini);
     uiqueue_init(ini);
@@ -1141,6 +1144,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         terrain_report();
         watch_report();
         cmdstream_report();
+        soundlog_report();
         crtfail_log_last_cxx();
         log_event("process exiting");
         drop_exception_snapshot();

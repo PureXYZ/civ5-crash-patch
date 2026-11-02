@@ -77,6 +77,13 @@
   request plus its 8-byte header took 512 KB). On the same late save, page-end waste fell from 31
   to 3.6 MB and mimalloc's overhead (reserved minus live) from 132-141 MB to 106-113 MB at 10 and
   20 minutes.
+- **`SoundLog=1`** (diagnostic): writes every sound the game starts to `sounds_<session>.log`, on
+  the events log's clock, with what the game gave the Miles sound engine: the file type and the
+  size in bytes. `probe/soundnames.py` names them by size from the game's sound files and sound
+  pack. Failed loads and stream opens are logged with Miles' error text. The events log's reports
+  list the most started sounds and the most starts of each within one second. `audiotest` checks
+  it. It found the chime that repeats during AI turns: the game's own notification sound, one per
+  notification (not the patch; details in the research notes).
 
 ## 1.2.1
 

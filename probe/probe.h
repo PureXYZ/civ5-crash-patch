@@ -3,6 +3,7 @@
 #include <windows.h>
 
 void log_event(const char *fmt, ...);
+double log_time_s(void);  // the events log's clock: seconds since the probe started
 HANDLE open_out(const WCHAR *name);
 void write_all(HANDLE h, const char *buf, int len);
 extern WCHAR g_session[32];
@@ -103,6 +104,10 @@ void luaguard_report(void);
 // audioguard.c
 void audioguard_init(const WCHAR *ini);
 void audioguard_tick(void);  // sampler thread
+
+// soundlog.c
+void soundlog_init(const WCHAR *ini);  // after audioguard_init
+void soundlog_report(void);
 
 // cmdstream.c
 void cmdstream_init(const WCHAR *ini);

@@ -368,6 +368,7 @@ on reading their output.
 | [`D3DStats=1`](#d3d11-statistics-d3dstats1) | What the game asks of Direct3D 11 |
 | [`HeapHistogram=1`](#heap-histogram-heaphistogram1) | Busy and free heap blocks by size |
 | [`Watch=1`](#watchpoint-watch1) | Catch a write to one heap object |
+| [`SoundLog=1`](#sound-log-soundlog1) | Which sounds the game plays, and when |
 
 ### Telemetry (`Telemetry=1`)
 
@@ -392,6 +393,20 @@ the frames over 33 ms and 100 ms (and how much of them was in handlers) and the 
 most time in those frames: calls, total, longest call. The record types are the game's UI event
 numbers (`0x66` `SerialEventGameDataDirty`, `0x72` `HexFOWStateChanged`, `0x77` `TeamMet`,
 `0x7c` `ActivePlayerTurnStart`, …).
+
+### Sound log (`SoundLog=1`)
+
+Writes a line to `sounds_<session>.log` for every sound the game starts, with the same clock as
+the events log: `play` for a sound the game loaded into the Miles sound engine, `stream` for a
+streamed one (music). The game tells Miles only the file type (`.wav`, `.mp3`), so each line has
+that and the size in bytes, and streams have no usable name. A sound that fails to load or open
+gets a `failed` line with Miles' error text. Every 10 minutes and at exit, the events log lists
+the 10 most started sounds and the most starts of each within one second.
+
+To name a sound you hear in game, note the time, then run
+`python -I probe/soundnames.py "<game>\civprobe\sounds_<session>.log" "<game>"`: it matches the
+sizes against the game's sound files and its sound pack (`SoundData.fpk`), and lists the most
+started sounds and the starts per 5 seconds (`--from S --to S` lists every start in a window).
 
 ### Allocation tracking (`AllocTracking=1`)
 

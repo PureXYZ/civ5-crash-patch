@@ -5,5 +5,11 @@ EXPORTS
     _AIL_allocate_sample_handle@4=AIL_allocate_sample_handle@4
     _AIL_release_sample_handle@4=AIL_release_sample_handle@4
     _AIL_sample_volume_pan@12=AIL_sample_volume_pan@12
+    _AIL_set_named_sample_file@20=AIL_set_named_sample_file@20
+    _AIL_start_sample@4=AIL_start_sample@4
+    _AIL_open_stream@12=AIL_open_stream@12
+    _AIL_start_stream@4=AIL_start_stream@4
+    _AIL_last_error@0=AIL_last_error@0
     _fake_calls@0=fake_calls@0
     _fake_slot@0=fake_slot@0
+    _fake_started@0=fake_started@0

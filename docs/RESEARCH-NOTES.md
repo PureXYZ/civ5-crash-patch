@@ -54,6 +54,8 @@ In the order they happened:
    [The whole map in the pool, and Steam's CEG](#grey-tiles-second-try-the-whole-map-in-the-pool-2026-11-01)
 10. **The DirectX 9 and tablet exes.**
    [Porting](#porting-to-the-directx-9-and-tablet-exes-2026-10-30)
+11. **Sounds.**
+   [The chime that repeats during AI turns](#the-chime-that-repeats-during-ai-turns-2026-11-02)
 
 ## Why the game crashes
 
@@ -2355,3 +2357,35 @@ The user asked for another attempt at the space only reserved in the driver's 32
   packs them, set at the load's peak. Nothing outside the game's render code changes either. The
   regions are closed for good; the larger leads are the leader-head texture copies (~140 MB) and
   the fluid particle pools (~80 MB committed, unused).
+
+## The chime that repeats during AI turns (2026-11-02)
+
+The user heard "error sounds" during the computer's turn: one sound repeating at an interval,
+stopping when the AI turn ends. Does the patch cause it?
+
+- **Nothing in the probe plays a sound,** and the audio guard hasn't skipped a call since the
+  2026-10-28 experiments. To name the sound, `SoundLog=1` (soundlog.c) wraps the exe's
+  `AIL_set_named_sample_file`, `AIL_start_sample`, `AIL_open_stream` and `AIL_start_stream`
+  imports (all four slots outside CEG's ranges). The game passes Miles only the file type as the
+  name (its one load site, the wrapper at exe+0x523180), so sounds are named by size:
+  `soundnames.py` reads the loose sound files and the entries of `Resource/Common/SoundData.fpk`.
+- **Session 20261102_024433 (patch defaults: GameCoreIntervalMs=10, UiQueuePasses=4; turn 367):**
+  a UI click (End Turn) at 176.2 s, AI turn 185.0-211.4 s (the autosaves). `notificationneutral.wav` at
+  176.6, 179.6, 186.6, 189.6, 192.6, 195.6, 198.6, 200.6, 202.6, 205.7, 209.6 and 212.6 s: 12
+  times, 2-3 s apart, nearly all at x.58 s; a `notificationverybad.wav` at 181.6 s on the same grid.
+- **Session 20261102_025737 (the game's own pacing: GameCoreIntervalMs=0, UiQueuePasses=1; turn
+  368):** AI turn 250.6-303.2 s (52.6 s against 26.4). `notificationneutral.wav` 15 times from
+  221.8 to 286.8 s, mostly 2-3 s apart (four gaps of 8-17 s), all but one at x.75-x.77 s, with
+  `notificationothercivwonder.wav` and two `notificationverybad.wav` on the same grid: 18
+  notification sounds. The user counted 19 new notifications after the turn.
+- **The sound:** `SND_EVENT_NOTIFICATION_NEUTRAL` (script `AS2D_EVENT_NOTIFICATION_NEUTRAL`).
+  `NotificationSounds.xml` gives it to `NOTIFICATION_GENERIC` (the type mods use for their own
+  messages), `NOTIFICATION_WAR` (other civs' wars), `NOTIFICATION_CAPITAL_LOST` and
+  `NOTIFICATION_GOLDEN_AGE_ENDED_ACTIVE_PLAYER`. The exe reads that table (the string is in the
+  exe, not in VP's DLL), and no installed mod plays the sound from Lua.
+- **Conclusion: one chime per notification, played 2-3 s apart on a one-second grid, with the
+  game's pacing as with the patch's.** How many there are is the game and the mods (VP,
+  Sapiens, Gaia's), not the patch.
+- **Also in both sessions,** with either pacing, once per turn: the looping ambience beds (`RiverBed.mp3`, `ForestBed.mp3`, `JungleBed.mp3`, `OceanCoastBed.mp3`, …) restart 128
+  times in 176-190 s and 141 times in 265-276 s, in bursts every ~0.5 s. The same with the
+  game's pacing, so it's the game's soundscape, not the patch.
