@@ -1954,3 +1954,29 @@ possible.
   describe the same with no known cure. The DX9 port could only be checked for starting, finding
   its code and not crashing (the busy stream did overflow there, 4740/4096, held by the spare);
   rendering with it remains unseen. Player advice in TROUBLESHOOTING ("DirectX 9 shows only icons").
+
+## The "d3d11.dll" 117 MB is the fluid fog of war (2026-11-01)
+
+The reservation log of session 20261101_191043 (`AllocTracking=1`, so mimalloc off) grouped
+117 MB in 8 regions under `d3d11.dll+0x2b145`, as if the D3D11 runtime held 16-24 MB blocks.
+It doesn't. With the public d3d11.pdb those frames are `NOutermost::CDevice::CreateLayeredChild`
+(+0x255, +0xc9, +0x275) and `CCreateBufferValidator::Validate`, i.e. `CreateBuffer`, but in the
+full rows they sit between ntdll's heap frames and `MSVCR90 malloc -> probe -> exe+0x42c0d5`
+(the game's malloc wrapper). The reservation log's stacks are a stack scan, and these are stale
+return addresses left on the load thread's stack by the `CreateBuffer` calls just before; the
+same three frames turn up in frees made from the game's own code. The real callers (all at
+30.1 s, all from the fluid fog setup at exe+0x4b1c8-0x4b256, all confirmed by the
+`allocsites_*_latest.csv` of that session):
+
+| Size | Caller | Source (strings at the call) |
+|---|---|---|
+| 4 x 24 MB | exe+0x28f79a | `FluidParticles.cpp` l.623, one per job thread (the row in "Who owns the 1.6 GB CRT heap") |
+| 16 MB | exe+0x4cc6cb, from exe+0x4b1f9 | `FTextureData.cpp` l.2151: the CPU copy of `flowfield.dds` (object made at `FluidFOW.cpp` l.290, kept at fog object +0x1340 and handed to the particle init), size = sum over mips of w x h x 16 B |
+| 2 x 0.75 MB | exe+0x28f808 / +0x28f82e | `FluidParticles.cpp` l.633 |
+
+So the D3D11 runtime owns nothing big here, and the "d3d11 114 MB" lead counted the 96 MB of
+per-thread fluid buffers a second time. The flow field data is read by the particle jobs on the
+CPU, so it is needed while fluid fog is on. No new lever: the fluid fog's size still only
+follows `MaxSimultaneousThreads` (24 MB per job thread) and `FluidFOW` (which breaks rendering).
+Lesson for the reservation log: take the owner from the frame after the allocator entry
+(`MSVCR90`/probe malloc wrapper), not the first non-system frame, when both appear.
