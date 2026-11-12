@@ -6,7 +6,7 @@ name: upstream
 
 on:
   schedule:
-    - cron: '17 6 * * *'
+    - cron: '17 6 * * 1'  # Mondays
   workflow_dispatch:
   push:
     branches: [main]

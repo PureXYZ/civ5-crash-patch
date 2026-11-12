@@ -456,7 +456,7 @@ their data addresses against the objects the fix manages, their code against the
 reads. It also looks at every open pull request there, and every one merged since the last review,
 for changes to their exe folder and new uses of low-level calls (page protection, heaps, import
 tables, exception filters, threads). The result must match
-[`vpcompat.txt`](../probe/vpcompat.txt). A [daily run](../.github/workflows/upstream.yml) fails
+[`vpcompat.txt`](../probe/vpcompat.txt). A [weekly run](../.github/workflows/upstream.yml) fails
 when something is new, with what it found; after a review, `vpcompat.py --update` records it.
 
 The watch covers that one DLL. Other mods' DLLs are rare and are not watched.
