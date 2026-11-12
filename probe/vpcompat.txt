@@ -1,0 +1,26 @@
+# Written by vpcompat.py --update after a review; see the top of vpcompat.py.
+# "reviewed" lines are fingerprints of pull requests there that were looked at.
+checked 2026-11-12
+reviewed 125ed137b432
+reviewed 200a1b9f170e
+reviewed 3d2240942244
+reviewed 5ac6b645753a
+reviewed c51cd28073cf
+folder: 9 files, ab674403eafb
+table: 12 symbols, 8 checks
+  LoadCvGameCoreDLL_SetEngineUserInterface EXE_CODE 0047ba70 0072b7f0 004cb690
+  InterfaceBuddy_UserInterface EXE_OFFSET 00000004 00000004 00000004
+  InterfaceBuddy_dtor EXE_FUNCTION 006b74d0 00472fc0 0054d990
+  InterfaceBuddy_vftable EXE_VTABLE 00a3fe78 00a35198 00a42f00
+  InterfaceBuddy_UserInterface_vftable EXE_VTABLE 00a04240 00a00928 009f3738
+  InterfaceBuddy_dtor_UnregisterYieldIcons EXE_CODE 006b76cb 004731bb 0054db8b
+  InterfaceBuddy_YieldIconManager EXE_OFFSET 00000010 00000010 00000010
+  YieldIconManager_UnregisterForEvents EXE_FUNCTION 00711dc0 0069dde0 006bc7b0
+  YieldIconManager_UnregisterForEvents_unk17 EXE_FUNCTION 00874eb0 0089aa50 00876940
+  g_EventSystemLocalMachine EXE_DATA 01a0e400 019fe200 01a0fe80
+  Civ5NetMessage_s_wantForceResync EXE_DATA 02dd2f68 02dc2d68 02dd4f50
+  ResetNetMessageStatics_ClearWantForceResync EXE_CODE 00525bd3 004e1193 00781b73
+DX11: data  g_EventSystemLocalMachine = queueObj (msgqueue.c) + 0x0
+DX9: data  g_EventSystemLocalMachine = queueObj (msgqueue.c) + 0x0
+tablet: data  g_EventSystemLocalMachine = queueObj (msgqueue.c) + 0x0
+low-level calls in the folder: none

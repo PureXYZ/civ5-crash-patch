@@ -21,6 +21,7 @@ All addresses are RVAs in the final Steam `CivilizationV_DX11.exe` (1.0.3.279, P
 - [Faster AI turns and fewer hitches](#faster-ai-turns-and-fewer-hitches)
 - Textures: [texture handle table](#texture-handle-table), [terrain base textures](#terrain-base-textures)
 - [Other exes: DirectX 9 and tablet](#other-exes-directx-9-and-tablet)
+- [Living with other DLLs](#living-with-other-dlls)
 - [Known limits](#known-limits)
 - [Low-memory warning](#low-memory-warning)
 - [Diagnostics](#diagnostics)
@@ -423,6 +424,42 @@ Three parts are DirectX 11 only:
 - **Fog particle pools:** the other two exes have the same fog code, but there one or both of the
   places it changes lie in CEG-checked code (tablet: the seeding; DirectX 9: the seeding and the
   step launch call), so it stays off.
+
+## Living with other DLLs
+
+The Community Patch DLL (Vox Populi's game core) also works inside the exe. It keeps a table of
+exe addresses, and before it uses one it compares signature bytes there and cross-checks the
+entries against each other. An entry that fails is dropped, with every entry that depends on it,
+and the feature that needs it stays off. It reads code and never writes it; it reads and writes
+data, and calls a few of the game's own functions.
+
+The fix loads first, so that DLL always sees the fix's changes. What keeps the two apart:
+
+- **Code the fix rewrites.** A signature or check of theirs on those bytes fails, so their feature
+  stays off and the fix does the job alone. This is the case for a DLL that grows the UI command
+  streams itself: it checks the stream constructor and reset function, which
+  `CommandStreamSplit=1` (DX11, tablet) and `CommandStreamStats=1` (DirectX 9) change. Nothing is
+  left half done, and the fix covers the same streams.
+- **The event queue.** They read its counters and call game functions that take its lock. The
+  fix's two import hooks pass every call that isn't about the queue's halves or its lock straight
+  through, and the fix never writes the queue's index or its handler table.
+- **The core-to-UI handler tables.** The game's unregister functions, which they call, find a
+  type's listeners through the context half of a slot. The fix's thunks go in the function half
+  only (`uiqueuetest` checks this).
+- **Stream arrays the fix didn't make (DirectX 9).** If another DLL swaps in its own arrays, their
+  counters stop one short of the capacity instead of using spare room that isn't there.
+
+No fix can be safe against changes nobody has seen, so the repository watches for them.
+[`vpcompat.py`](../probe/vpcompat.py) compares their address table with every place in
+[`exes.c`](../probe/exes.c): their signature and check bytes against the code the fix rewrites,
+their data addresses against the objects the fix manages, their code against the code the fix
+reads. It also looks at every open pull request there, and every one merged since the last review,
+for changes to their exe folder and new uses of low-level calls (page protection, heaps, import
+tables, exception filters, threads). The result must match
+[`vpcompat.txt`](../probe/vpcompat.txt). A [daily run](../.github/workflows/upstream.yml) fails
+when something is new, with what it found; after a review, `vpcompat.py --update` records it.
+
+The watch covers that one DLL. Other mods' DLLs are rare and are not watched.
 
 ## Known limits
 

@@ -1,0 +1,32 @@
+# Watches the Community Patch DLL for changes that could meet this patch in the game's process
+# (probe/vpcompat.py). A failed run means something there is new: review it, then record it with
+# `python -I probe/vpcompat.py --update` and push probe/vpcompat.txt.
+# GitHub turns scheduled runs off after 60 days without a push; "Run workflow" turns them back on.
+name: upstream
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - probe/exes.c
+      - probe/cmdstream.c
+      - probe/vpcompat.py
+      - probe/vpcompat.txt
+      - .github/workflows/upstream.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compare with the Community Patch DLL
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I probe/vpcompat.py

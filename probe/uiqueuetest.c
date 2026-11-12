@@ -111,6 +111,11 @@ int main(void)
     }
     CHECK(*slot(0, 0x10) != handler_a, "slot not wrapped");
     CHECK(*slot(1, 0x10) == NULL, "empty slot wrapped");
+    // Only the function half of a slot changes. The game, and other DLLs through the game's own
+    // unregister functions, find a type's listeners through the context half.
+    CHECK(((void **)slot(0, 0x10))[1] == &g_ctxA && ((void **)slot(0, 0x66))[1] == &g_ctxD &&
+              ((void **)slot(0, 0x77))[1] == &g_ctxM && ((void **)slot(0, 0x20))[1] == NULL && ((void **)slot(1, 0x10))[1] == NULL,
+          "a context slot changed");
 
     static BYTE rec[0x44 + 8];
     *(DWORD *)rec = sizeof rec;

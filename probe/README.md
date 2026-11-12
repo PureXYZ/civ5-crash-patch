@@ -207,6 +207,7 @@ Python).
 | `portmap.py <DX11 exe> <other exe> [--objdump PATH] [--only NAMES] [--extra RVAS]` | Finds the DX11 addresses of `exes.c` in another build of the exe: code by the DX11 instructions around it (relocated dwords and branch displacements masked, decoded with LLVM-MinGW's `llvm-objdump`), data by the instructions that reference it. Prints how each was found; a few need checking by hand (see `exes.c`). |
 | `soundnames.py <sounds log> <game folder> [--mods DIR] [--top N] [--from S] [--to S]` | Names the sounds in a `SoundLog=1` log by their size (loose sound files and `*Sound*.fpk` packs), and lists the most started and the starts per 5 s. |
 | `cegall.py <exe> [0xRVA[:len] ...] [--list]` | The code ranges Steam's CEG checksums (all 284 range loops, ~80% of `.text`; 26 of them behind `mov eax, fn; call eax; ret` stubs), and whether the given places are inside one. Run it on any new code change: one inside exe+0x2d00f0's ranges crashed map loads. |
+| `vpcompat.py [--update] [--ref REF] [--file PATH]` | Compares the Community Patch DLL's exe address table, its open pull requests and those merged since the last review with every place in `exes.c` (see [Living with other DLLs](../docs/HOW-IT-WORKS.md#living-with-other-dlls)). Exits 1 when something there is new; `--update` records it in `vpcompat.txt` after a review. Needs the GitHub CLI. Runs daily in CI ([`upstream.yml`](../.github/workflows/upstream.yml)). A new field in `exes.c` must be classified in its `patch_fields()`. |
 
 ## Diagnostic modes
 
