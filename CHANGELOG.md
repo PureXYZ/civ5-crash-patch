@@ -1,8 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
 ### What's new
+
+To update, close the game and copy the new `msimg32.dll` over the old one. Then check the newest
+log: its first line should give the new version, and its third line should read
+`exe: Steam's DX11 build of 2026` (or `of 2014` if your game hasn't had Steam's update).
 
 - **Works with Steam's November 2026 update of the game.** That update (Steam build 26577625,
   2026-11-22) replaced the game's three exes with rebuilt ones. Version 1.4.1 still loads with

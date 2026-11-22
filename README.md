@@ -17,7 +17,7 @@ Tested on a late-game Vox Populi + EUI game on a Huge map, and on the unmodded g
 Requires the Windows Steam version of Civ V, version 1.0.3.279. That covers both the 2014 files
 and the ones Steam's November 2026 update put in their place.
 
-1. Download `CivVCrashPatch-1.4.1.zip` from the
+1. Download `CivVCrashPatch-1.5.0.zip` from the
    [latest release](https://github.com/PureXYZ/civ5-crash-patch/releases/latest) (under *Assets*).
 2. Unzip it: right-click the zip, choose **Extract All…**, then **Extract**.
 3. Open the game folder: in your Steam **Library**, right-click **Sid Meier's Civilization V** and
@@ -32,7 +32,7 @@ You don't need the settings file in the zip's `optional` folder. It's only for c
 ### Check that it's working
 
 Start the game. A `civprobe` folder appears in the game folder. Open the newest `events_….log` in
-it with Notepad. The first line should contain `Civ V Crash Patch 1.4.1`.
+it with Notepad. The first line should contain `Civ V Crash Patch 1.5.0`.
 
 ### Update or uninstall
 

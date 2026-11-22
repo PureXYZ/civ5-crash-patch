@@ -1,4 +1,4 @@
-Civ V Crash Patch 1.4.1
+Civ V Crash Patch 1.5.0
 https://github.com/PureXYZ/civ5-crash-patch
 =============================================
 
@@ -43,7 +43,7 @@ You don't need optional\civprobe.ini. It's only for changing settings (see OTHER
 
 To check that it works: after you start the game, the game folder has a new folder called
 "civprobe". The first line of the newest events_....log file in it contains
-"Civ V Crash Patch 1.4.1".
+"Civ V Crash Patch 1.5.0".
 
 
 GAME SETTINGS FOR BIG GAMES
