@@ -16,8 +16,9 @@ typedef struct { DWORD rva, value, kind; } TexSite;
 // build has no such place (the part stays off there).
 typedef struct {
     const char *name;  // "DX11", "tablet", "DX9"
+    const char *build; // "2014" (the game's last patch) or "2026" (Steam's rebuild of it)
     DWORD timestamp, imageSize;
-    DWORD gameFault;   // the game's own NULL write at every start (probe.c)
+    DWORD gameFault;   // the game's own NULL write at every start (probe.c); 0 = this build has none
     // cmdstream.c
     BYTE streamHalves; // 2: double-buffered streams (halves swap at the flip); 1: one set of arrays (DX9)
     BYTE recordRound;  // the record allocator rounds sizes up to 256 bytes (tablet)

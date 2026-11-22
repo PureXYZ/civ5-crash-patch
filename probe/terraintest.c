@@ -70,7 +70,8 @@ static void __cdecl fake_qsort(void *b, size_t n, size_t w, int(__cdecl *c)(cons
 }
 
 // Calls a stub with esi = obj and known values in the other registers; returns ecx and ebx, and
-// whether esi and edi survived.
+// whether esi and edi survived. g_eax: what it left in eax.
+static DWORD g_eax;
 static DWORD call_stub(void *stub, void *obj, DWORD *ebx, int *kept)
 {
     DWORD a = 0x11111111, b = 0x22222222, c = 0x33333333, d = 0x44444444, di = 0x66666666;
@@ -80,6 +81,7 @@ static DWORD call_stub(void *stub, void *obj, DWORD *ebx, int *kept)
                      : [f] "m"(stub)
                      : "cc", "memory");
     *ebx = b;
+    g_eax = a;
     *kept = si == obj && di == 0x66666666;
     return c;
 }
@@ -124,7 +126,9 @@ int main(void)
     CHECK(p[0] == 0xE8 && p + 5 + *(const LONG *)(p + 1) == (BYTE *)terrain_handover_stub() && p[5] == 0x90,
           "hand-over count not a call to its stub");
     p = exe + g->terrainHandArray;
-    CHECK(p[0] == 0xBA && *(DWORD *const *)(p + 1) == array && p[5] == 0x90, "hand-over array not mov edx, array");
+    // mov edx, array in the 2014 exe; mov ecx, array in the 2026 one (the register its lea loaded)
+    CHECK(p[0] == (strcmp(g->build, "2026") ? 0xBA : 0xB9) && *(DWORD *const *)(p + 1) == array && p[5] == 0x90,
+          "hand-over array not mov edx / ecx, array");
     p = exe + g->terrainRelease;
     CHECK(p[0] == 0xE8 && p + 5 + *(const LONG *)(p + 1) == (BYTE *)terrain_release_stub() && p[5] == 0x90 &&
           !memcmp(p + 6, after, sizeof after), "release not a call to its stub, or the loop after it changed");
@@ -144,8 +148,9 @@ int main(void)
     DWORD ebx, ecx;
     int kept, bad = 0;
     ecx = call_stub(terrain_handover_stub(), obj, &ebx, &kept);
-    CHECK(ecx == GAME && *count == GAME && !g_makes && kept && ebx == 0x22222222,
-          "first hand-over: %lu (object %lu), %d makes, registers %s", ecx, *count, g_makes, kept ? "kept" : "changed");
+    CHECK(ecx == GAME && g_eax == GAME && *count == GAME && !g_makes && kept && ebx == 0x22222222,
+          "first hand-over: %lu (eax %lu, object %lu), %d makes, registers %s", ecx, g_eax, *count, g_makes,
+          kept ? "kept" : "changed");
     for (DWORD i = 0; i < GAME; i++) bad += array[i] != 100 + i;
     CHECK(!bad, "our array: %d of the game's wrong", bad);
 

@@ -64,6 +64,8 @@ In the order they happened:
    [GPU Texture Decode keeps them out of memory](#leader-head-texture-data-gpu-texture-decode-already-keeps-it-out-of-memory-2026-11-02)
 14. **Warning the player.**
    [The low-memory warning in game](#the-low-memory-warning-in-game-2026-11-02)
+15. **Steam's 2026 rebuild of the game.**
+   [Porting to the new exes](#steams-2026-rebuild-of-the-exes-2026-11-22)
 
 ## Why the game crashes
 
@@ -2791,3 +2793,63 @@ cegall.py sees): exe+0x109c5d (the step launch call) and exe+0x17eeb0 (the seedi
   025737 (and 783 MB in 022048 on the same save); FluidPools makes no small blocks.
 - So: 88 MB of address space back with 4 threads (with 8, about 176 MB), from the first map load
   on; the game's 96 MB stays until then (the startup and main menu).
+
+## Steam's 2026 rebuild of the exes (2026-11-22)
+
+Steam updated the game on 2026-11-22 (build 26577625; exe depot 8932 manifest
+4917473860950460669, before it 1500173799562188053). All three exes, the game core DLLs, the
+database and localization DLLs were replaced. `lua51_Win32.dll` is still the 2013 build.
+
+| | 2014 timestamp / image size | 2026 timestamp / image size |
+|---|---|---|
+| `CivilizationV_DX11.exe` | 0x546cd0a8 / 0x6519000 | 0x6af3837d / 0x63a2000 |
+| `CivilizationV.exe` (DX9) | 0x546ccb59 / 0x5a74000 | 0x6af3818f / 0x58ff000 |
+| `CivilizationV_Tablet.exe` | 0x546cd5f8 / 0x651b000 | 0x6af385ba / 0x63a5000 |
+| `CvGameDatabaseWin32Final Release.dll` | 0x546cbfb1 / 0x624000 | 0x6af37de8 / 0x624000 |
+
+What the new exes are:
+
+- **The same version.** The version resource still reads 1.0.3.279 (403694) (11/19/2014); the link
+  date is 2026-11-10, the linker is still 9.0 (Visual Studio 2008), and the signature is 2K's.
+- **No CEG.** `cegall.py` finds none of the 284 checksum loops, and there is no
+  `mov eax, fn; call eax; ret` stub or `not eax` CRC tail in `.text`. `.text` is about 0.36 MB
+  smaller (5.47 MB).
+- **The same code in another order.** Functions keep their bytes, struct offsets and sizes, but
+  sit elsewhere (the event queue's pass 0x59d20 -> 0x958b0, the texture pool's code 0x4bc000..
+  -> 0x421000.., the fluid fog's code now together at 0x1ac000..0x1b3100). Every byte pattern the
+  parts' checks use matches at the new places. Counts match too: 193 relocations to the texture
+  pool (161 Release callers, 9 Alloc), 50 + 52 references past its refcounts and into the records.
+- **One difference in register use.** The terrain hand-over (2014 exe+0x1bd079) reads
+  `mov eax,[esi+62A04h]` / `lea ecx,[esi+6D888h]` at 0x122586 / 0x122593, where the 2014 exe uses
+  ecx / edx. edx is loaded between the two (`mov edx,[esi+62A00h]`), after the count's stub
+  returns, so the stub may still change it. `terrain.c` accepts both forms and writes the
+  `mov reg, array` for the register the `lea` loaded.
+- **No start-up fault.** The 2014 exes write to NULL at exe+0x523dcb (DX11) at every start and
+  handle it. Session 20261122_032353 on the new DX11 exe (72 s, to the menu and out) has no
+  exception line. `gameFault` is 0 for the new exes.
+- **The Lua heap is destroyed at exit.** After the locked `lua_close`, the new exe calls
+  `HeapDestroy` on the Lua heap's handle (0x3777cf). With `LuaHeapMimalloc` the blocks are in
+  mimalloc and already freed by then.
+- **The database DLL** has its SQLite memory methods, heap handle and allocator code at the same
+  offsets as before; only the timestamp differs.
+
+How the addresses were found, without the 2014 exes on disk (Steam removes them):
+
+- **DX11:** each part's check holds the bytes it expects; those patterns, with relocated addresses
+  and branch displacements left open, were searched in the new `.text` and the place confirmed by
+  the code around it. Most patterns match once. `queuePost` matches 14 times (one post function
+  per record type; all call the same import, which is what the hook is on): the type 0x49 one is
+  in the table.
+- **DX9 and tablet:** `portmap.py --catalog` from the 2026 DX11 exe. Where it found several
+  places and picked by distance, the pick was wrong more than once (the three listener
+  registrations, the alert's naming call), so those came from their own patterns:
+  `C7 81 <owner + 8 + type*8> <handler>` for a registration, the registration function's one
+  caller for the alert, `mov ecx, cs; jmp <push ecx; call [EnterCriticalSection]>` for the Lua
+  lock, the vector reserve's call for the aligned delete.
+- **Checked:** `CivilizationV_probetest.exe` on the three new exes (every part `ok`), and
+  `texhandlestest` / `terraintest` / `fluidpooltest` / `luaheaptest`, which run the new exe's own
+  code or the new database DLL with the change applied.
+
+Not done: FluidPools in the 2026 DirectX 9 and tablet exes. The 2014 reason (its two code changes
+sit in CEG-checked code there) is gone and `portmap.py` finds all nine places, but it has not run
+in either.

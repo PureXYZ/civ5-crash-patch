@@ -130,8 +130,8 @@ static DWORD make_extra(DWORD *out, DWORD n)
     return made;
 }
 
-// exe+0x1bd079 (through handover_stub, ecx = the result): the count of base textures to hand to
-// the new tile manager.
+// exe+0x1bd079 (through handover_stub, eax and ecx = the result): the count of base textures to
+// hand to the new tile manager.
 DWORD __cdecl terrain_handover(BYTE *obj) __asm__("terrain_handover");
 DWORD __cdecl terrain_handover(BYTE *obj)
 {
@@ -164,7 +164,8 @@ DWORD *__cdecl terrain_release(BYTE *obj)
 }
 
 // At both sites eax, ecx and edx are written before they are read again and the flags are dead;
-// esi is the terrain object.
+// esi is the terrain object. The hand-over's count is wanted in ecx (the 2014 builds) or eax (the
+// 2026 build): the stub leaves it in both.
 __attribute__((naked)) static void handover_stub(void)
 {
     __asm__("pushl %esi\n\tcall terrain_handover\n\taddl $4, %esp\n\tmovl %eax, %ecx\n\tret");
@@ -254,12 +255,16 @@ const char *terrain_check(BYTE *exe, const GameExe *g)
         if (!t[k] || t[k] < exe || t[k] >= exe + size) return "pool init calls";
     BYTE *on = *(BYTE *const *)(i + 2), *res = *(BYTE *const *)(i + INIT_RES + 1);
     if (on < exe || on + 4 > exe + size || res < exe || res + 4 > exe + size) return "pool init variables";
-    // The hand-over: mov ecx,[esi+62A04h] / lea edx,[esi+6D888h]. The release at exit:
-    // lea ebx,[esi+6D888h] / mov ecx,[ebx]; push ecx; mov ecx, <texture handle pool>; call.
-    static const BYTE kCount[] = {0x8B, 0x8E, 0x04, 0x2A, 0x06, 0x00}, kArrayEdx[] = {0x8D, 0x96, 0x88, 0xD8, 0x06, 0x00},
+    // The hand-over: mov ecx,[esi+62A04h] / lea edx,[esi+6D888h] (the 2014 builds), or
+    // mov eax,[esi+62A04h] / mov edx,[..] / push eax / lea ecx,[esi+6D888h] (the 2026 build). The
+    // release at exit: lea ebx,[esi+6D888h] / mov ecx,[ebx]; push ecx; mov ecx, <texture handle pool>; call.
+    static const BYTE kCountEcx[] = {0x8B, 0x8E, 0x04, 0x2A, 0x06, 0x00}, kArrayEdx[] = {0x8D, 0x96, 0x88, 0xD8, 0x06, 0x00},
+                      kCountEax[] = {0x8B, 0x86, 0x04, 0x2A, 0x06, 0x00}, kArrayEcx[] = {0x8D, 0x8E, 0x88, 0xD8, 0x06, 0x00},
                       kArrayEbx[] = {0x8D, 0x9E, 0x88, 0xD8, 0x06, 0x00, 0x8B, 0x0B, 0x51, 0xB9};
-    if (!bytes_at(exe, size, g->terrainHandCount, kCount, sizeof kCount) ||
-        !bytes_at(exe, size, g->terrainHandArray, kArrayEdx, sizeof kArrayEdx))
+    if (!(bytes_at(exe, size, g->terrainHandCount, kCountEcx, sizeof kCountEcx) &&
+          bytes_at(exe, size, g->terrainHandArray, kArrayEdx, sizeof kArrayEdx)) &&
+        !(bytes_at(exe, size, g->terrainHandCount, kCountEax, sizeof kCountEax) &&
+          bytes_at(exe, size, g->terrainHandArray, kArrayEcx, sizeof kArrayEcx)))
         return "hand-over";
     if (!bytes_at(exe, size, g->terrainRelease, kArrayEbx, sizeof kArrayEbx) ||
         *(BYTE *const *)(exe + g->terrainRelease + 10) != exe + g->texPool || exe[g->terrainRelease + 14] != 0xE8)
@@ -298,7 +303,7 @@ const char *terrain_apply(BYTE *exe, const GameExe *g, DWORD cap, DWORD *array, 
     void *to[3] = {(void *)handover_stub, array, (void *)release_stub};
     for (int i = 0; i < 3; i++) {
         if (i == 1) {
-            code[i][0] = 0xBA;  // mov edx, array
+            code[i][0] = 0xB8 + ((at[i][1] >> 3) & 7);  // mov edx / ecx, array: the register the lea there loads
             memcpy(code[i] + 1, &to[i], 4);
         } else {
             LONG rel = (LONG)((BYTE *)to[i] - (at[i] + 5));

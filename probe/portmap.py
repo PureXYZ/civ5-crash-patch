@@ -5,6 +5,10 @@
 # DX11 instruction referencing it holds in the other exe (a vote over up to 12 references).
 # llvm-objdump (LLVM-MinGW) decodes the DX11 instructions.
 # Usage: python -I portmap.py <dx11 exe> <other exe> [--objdump PATH] [--only NAME,...] [--extra 0xRVA[:data],...]
+#        [--catalog FILE]
+# The catalog below holds the 2014 DX11 exe's RVAs. For another reference exe (the 2026 DX11 exe,
+# to map the 2026 DirectX 9 and tablet exes), give its RVAs with --catalog: lines of
+# `name code|data 0xRVA`, `#` starts a comment.
 import argparse, re, struct, subprocess, collections, shutil
 
 # name, kind, DX11 RVA. 'code' = an instruction start (function, call site, return address).
@@ -251,11 +255,16 @@ def main():
     ap.add_argument('--objdump', default=shutil.which('llvm-objdump') or 'llvm-objdump')
     ap.add_argument('--only', default='')
     ap.add_argument('--extra', default='', help='more DX11 RVAs: 0xRVA (code) or 0xRVA:data, comma-separated')
+    ap.add_argument('--catalog', default='', help="the reference exe's RVAs (lines: name code|data 0xRVA) instead of the 2014 DX11 exe's")
     a = ap.parse_args()
+    catalog = CATALOG
+    if a.catalog:
+        rows = [l.split('#')[0].split() for l in open(a.catalog)]
+        catalog = [(r[0], r[1], int(r[2], 16)) for r in rows if len(r) == 3]
     im, other = Image(a.dx11), Image(a.other)
     print('# %s (timestamp 0x%08x, SizeOfImage 0x%x) from %s (0x%08x)' % (a.other, other.timestamp, other.size, a.dx11,
                                                                          im.timestamp))
-    cat = [c for c in CATALOG if not a.only or c[0] in a.only.split(',')]
+    cat = [c for c in catalog if not a.only or c[0] in a.only.split(',')]
     for e in filter(None, a.extra.split(',')):
         r, _, k = e.partition(':')
         cat.append(('extra_' + r, k or 'code', int(r, 16)))

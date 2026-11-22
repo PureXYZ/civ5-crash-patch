@@ -82,6 +82,21 @@ static int jump(BYTE *exe, DWORD rva, const BYTE *want, size_t len, void *fn)
     return 1;
 }
 
+// The places only the test uses, per build of the DX11 exe (the 2014 addresses are the ones the
+// comments name).
+typedef struct {
+    const char *build;
+    DWORD fsbaAlloc, fsbaFree, alignedAlloc;  // FSBAAllocate, FSBADeallocate, the aligned allocator
+    DWORD itemRef, recRef;                    // the operands of `mov eax,[items+eax*4]` and `add ebp, records`
+    DWORD ctor, dtor, alloc, release, addref, flush, recycle, record, field;
+} TestSites;
+static const TestSites kTestSites[] = {
+    {"2014", 0x413870, 0x4138b0, 0x413a80, 0x4bd553, 0x4bc0de,
+     0x4c7280, 0x4c5430, 0x4c5cb0, 0x1e8df0, 0x306290, 0x4c33d0, 0x4c48d0, 0x4bc840, 0x4bc860},
+    {"2026", 0x5dbe0, 0x5dc20, 0x5ddf0, 0x423613, 0x42219e,
+     0x42d300, 0x42b4d0, 0x42bd50, 0x5a540, 0xe3000, 0x429480, 0x42a970, 0x422900, 0x422920},
+};
+
 // One run on a fresh mapping of the exe: -1 = skipped (no game here), else the failures.
 static int run(DWORD n)
 {
@@ -100,6 +115,7 @@ static int run(DWORD n)
         printf("texhandles test: not the known DX11 exe\n");
         return 1;
     }
+    const TestSites *t = &kTestSites[!strcmp(g->build, "2026")];
     const char *why = texhandles_check(exe, g);
     if (why) {
         printf("texhandles_check: %s\n", why);
@@ -114,9 +130,9 @@ static int run(DWORD n)
     // push ebx; push ebp; push esi; push edi; push 1. The aligned allocator: mov eax,[esp+8]; test eax,eax
     static const BYTE kFsbaAlloc[] = {0x56, 0x57, 0x6A, 0x01, 0xE8}, kFsbaFree[] = {0x53, 0x55, 0x56, 0x57, 0x6A, 0x01},
                       kAlloc[] = {0x8B, 0x44, 0x24, 0x08, 0x85, 0xC0};
-    ok = ok && jump(exe, 0x413870, kFsbaAlloc, sizeof kFsbaAlloc, (void *)fsba_alloc) &&
-         jump(exe, 0x4138b0, kFsbaFree, sizeof kFsbaFree, (void *)fsba_free) &&
-         jump(exe, 0x413a80, kAlloc, sizeof kAlloc, (void *)exe_alloc);
+    ok = ok && jump(exe, t->fsbaAlloc, kFsbaAlloc, sizeof kFsbaAlloc, (void *)fsba_alloc) &&
+         jump(exe, t->fsbaFree, kFsbaFree, sizeof kFsbaFree, (void *)fsba_free) &&
+         jump(exe, t->alignedAlloc, kAlloc, sizeof kAlloc, (void *)exe_alloc);
     if (!ok) return 1;
 
     BYTE *rec = VirtualAlloc(NULL, N * REC, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -132,13 +148,13 @@ static int run(DWORD n)
     DWORD vec = 0x32088 + 16 * extra, freeCount = 0x328b8 + 16 * extra, end = 0x328c0 + 16 * extra;
     // A reference from the texture code (exe+0x4bd550: mov eax,[items+eax*4]) and one into the
     // records (exe+0x4bc0dc: add ebp, records).
-    CHECK(*(DWORD *)(exe + 0x4bd553) == (DWORD)(ULONG_PTR)(pool + items), "item reference not moved");
-    CHECK(*(DWORD *)(exe + 0x4bc0de) == (DWORD)(ULONG_PTR)rec, "record reference not moved");
+    CHECK(*(DWORD *)(exe + t->itemRef) == (DWORD)(ULONG_PTR)(pool + items), "item reference not moved");
+    CHECK(*(DWORD *)(exe + t->recRef) == (DWORD)(ULONG_PTR)rec, "record reference not moved");
     MEMORY_BASIC_INFORMATION mbi;
     BYTE *trip = (BYTE *)(((ULONG_PTR)pool + end + 0xfff) & ~(ULONG_PTR)0xfff);
     CHECK(VirtualQuery(trip, &mbi, sizeof mbi) && mbi.Protect == PAGE_NOACCESS, "old records not inaccessible");
 
-    ((Ctor_t)(exe + 0x4c7280))(pool);
+    ((Ctor_t)(exe + t->ctor))(pool);
     CHECK(*(DWORD *)(pool + 0x40) == 1, "next after the constructor: %lu", *(DWORD *)(pool + 0x40));
     CHECK(*(DWORD *)(pool + frame) == 0, "frame index");
     for (int q = 0; q < 4; q++) {
@@ -148,9 +164,9 @@ static int run(DWORD n)
     DWORD *pv = (DWORD *)(pool + vec);
     CHECK(pv[0] == (DWORD)(ULONG_PTR)(pv + 3) && pv[2] == 0x200, "old-handle vector");
 
-    Alloc_t alloc = (Alloc_t)(exe + 0x4c5cb0);
-    Ref_t release = (Ref_t)(exe + 0x1e8df0), addref = (Ref_t)(exe + 0x306290);
-    Fn_t flush = (Fn_t)(exe + 0x4c33d0), recycle = (Fn_t)(exe + 0x4c48d0);
+    Alloc_t alloc = (Alloc_t)(exe + t->alloc);
+    Ref_t release = (Ref_t)(exe + t->release), addref = (Ref_t)(exe + t->addref);
+    Fn_t flush = (Fn_t)(exe + t->flush), recycle = (Fn_t)(exe + t->recycle);
     DWORD h;
     for (h = 1; h <= N - 2; h++) {
         DWORD r = alloc(pool);
@@ -189,7 +205,7 @@ static int run(DWORD n)
     CHECK(*(DWORD *)(pool + freeCount) == 0 && alloc(pool) == 0, "free list not empty after taking them back");
     CHECK(addref(pool, 0x3001) == 2 && release(pool, 0x3001) == 1, "AddRef / Release past 0x3000");
 
-    Get_t record = (Get_t)(exe + 0x4bc840), field = (Get_t)(exe + 0x4bc860);
+    Get_t record = (Get_t)(exe + t->record), field = (Get_t)(exe + t->field);
     CHECK(record(N - 2) == (DWORD)(ULONG_PTR)(rec + (N - 2) * REC), "record getter");
     *(DWORD *)(rec + 0x3001 * REC + 0x394) = 0x12345678;
     CHECK(field(0x3001) == 0x12345678, "record field getter");
@@ -198,7 +214,7 @@ static int run(DWORD n)
     while (p < trip && !*p) p++;
     CHECK(p == trip, "a byte past the grown pool changed (+0x%lx)", (unsigned long)(p - pool));
 
-    ((Fn_t)(exe + 0x4c5430))(pool);
+    ((Fn_t)(exe + t->dtor))(pool);
     printf("texhandles test: %lu handles, %lu released and taken back, %ld exe allocations: %s\n", (unsigned long)N,
            (unsigned long)count, g_allocs, g_fail ? "FAILED" : "ok");
     VirtualFree(rec, 0, MEM_RELEASE);

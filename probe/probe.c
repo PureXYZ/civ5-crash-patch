@@ -308,7 +308,7 @@ __declspec(dllexport) int CivProbe_CheckExe(const WCHAR *exePath, char *report, 
         {"d3dstats", d3dstats_check}, {"texhandles", texhandles_check}, {"terrain", terrain_check},
         {"intro", intro_check}, {"memwarn", memwarn_check}, {"fluidpool", fluidpool_check},
     };
-    int o = snprintf(report, cap, "%s:", g->name), ok = 1;
+    int o = snprintf(report, cap, "%s %s:", g->name, g->build), ok = 1;
     for (size_t i = 0; i < sizeof parts / sizeof parts[0] && o < cap; i++) {
         const char *why = parts[i].check(exe, g);
         if (why && !(parts[i].check == d3dstats_check && !g->d3dContext) && !(parts[i].check == texhandles_check && !g->texPool) &&
@@ -1062,8 +1062,8 @@ static void start_probe(void)
               (nt->FileHeader.Characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE) != 0);
     const GameExe *known = game_exe(base);
     if (known) {
-        g_gameFault = base + known->gameFault;
-        log_event("exe: the final Steam %s build", known->name);
+        g_gameFault = known->gameFault ? base + known->gameFault : NULL;
+        log_event("exe: Steam's %s build of %s", known->name, known->build);
     } else {
         log_event("exe: not a known build of the game; the parts that change exact places stay off");
     }

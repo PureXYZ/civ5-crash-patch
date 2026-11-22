@@ -14,7 +14,8 @@ Tested on a late-game Vox Populi + EUI game on a Huge map, and on the unmodded g
 
 ## Install
 
-Requires the Windows Steam version of Civ V, version 1.0.3.279 (the final update).
+Requires the Windows Steam version of Civ V, version 1.0.3.279. That covers both the 2014 files
+and the ones Steam's November 2026 update put in their place.
 
 1. Download `CivVCrashPatch-1.4.1.zip` from the
    [latest release](https://github.com/PureXYZ/civ5-crash-patch/releases/latest) (under *Assets*).
@@ -120,9 +121,10 @@ game.
 **Saves and multiplayer?** It doesn't touch game rules or save files, and saves still load without
 it. Multiplayer is untested.
 
-**Other game versions?** Fixes that patch specific spots in the game check them first. On versions
-other than 1.0.3.279 they turn off and say so in the log, and the game runs as it would without
-them.
+**Other game versions?** Fixes that patch specific spots in the game check them first. On game
+files they don't know they turn off and say so in the log, and the game runs as it would without
+them. If a Steam update changes the game's exe again, those fixes stay off until the patch is
+updated for it; the log's third line then reads `exe: not a known build of the game`.
 
 **Steam Deck or Linux (Proton)?** Untested. To make Proton load the DLL, add
 `WINEDLLOVERRIDES="msimg32=n,b" %command%` to the game's launch options.

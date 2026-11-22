@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### What's new
+
+- **Works with Steam's November 2026 update of the game.** That update (Steam build 26577625,
+  2026-11-22) replaced the game's three exes with rebuilt ones. Version 1.4.1 still loads with
+  them, but it doesn't know them, so most of its fixes turn themselves off: the log's third line
+  reads `exe: not a known build of the game`. This version knows both the old and the new files
+  and runs the same fixes in each.
+
+### Details
+
+- **The new exes:** same version number (1.0.3.279), link date 2026-11-10, the same code at other
+  addresses, and without Steam's CEG code checksums. `exes.c` has a table for each of the six
+  exes; the log names the one in use (`exe: Steam's DX11 build of 2026`).
+- **Terrain textures (`TerrainBaseSlots`):** the new DX11 exe keeps two values in other registers
+  where a map's tile manager gets its base textures. The fix takes both forms.
+- **SQLite heap (`DbHeapMimalloc`):** the game database DLL was rebuilt too, with its allocator
+  unchanged; its new build date is accepted.
+- **The game's own start-up fault** (a write to address 0 that the 2014 exes raise and handle at
+  every start) doesn't happen in the new exes, so any such fault there is logged as a real one.
+- **Tools:** `cegall.py` says so when an exe has no checksum loops; `portmap.py --catalog` maps
+  from a reference exe other than the 2014 DX11 one.
+
 ## 1.4.1
 
 ### What's new

@@ -238,7 +238,8 @@ const char *luaheap_check(BYTE *exe, const GameExe *g)
     return NULL;
 }
 
-// The database DLL (one file for all three exes): timestamp 0x546cbfb1, image 0x624000.
+// The database DLL (one file for all three exes): timestamp 0x546cbfb1 (2014) or 0x6af37de8 (the
+// 2026 rebuild, the same code at the same places), image 0x624000.
 #define DB_HEAP_VAR 0x61b6c4
 #define DB_METHODS 0x7849c
 
@@ -253,7 +254,8 @@ static int db_uses(BYTE *db, DWORD fn, DWORD movOff, const char *import, DWORD c
 const char *dbheap_check(BYTE *db)
 {
     IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(db + ((IMAGE_DOS_HEADER *)db)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != 0x546cbfb1 || nt->OptionalHeader.SizeOfImage != 0x624000) return "build";
+    DWORD stamp = nt->FileHeader.TimeDateStamp;
+    if ((stamp != 0x546cbfb1 && stamp != 0x6af37de8) || nt->OptionalHeader.SizeOfImage != 0x624000) return "build";
     // SQLite's memory methods: malloc, free, realloc, size, roundup, init, shutdown.
     static const DWORD kFns[] = {0x64c0, 0x6500, 0x6550, 0x65a0, 0x65c0, 0x65d0, 0x6610};
     BYTE *const *m = (BYTE *const *)(db + DB_METHODS);

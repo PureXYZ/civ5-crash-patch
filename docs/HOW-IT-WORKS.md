@@ -4,9 +4,11 @@ For technical readers: what was wrong in the game, and what each part of the fix
 the short version of the [research notes](RESEARCH-NOTES.md), which have every session, dump and
 dead end. Players don't need any of this; see the [README](../README.md).
 
-All addresses are RVAs in the final Steam `CivilizationV_DX11.exe` (1.0.3.279, PE timestamp
-2014-11-19, image base 0x400000). The same places in the DirectX 9 and tablet exes are listed in
-[`exes.c`](../probe/exes.c); see [Other exes](#other-exes-directx-9-and-tablet).
+All addresses are RVAs in the 2014 Steam `CivilizationV_DX11.exe` (1.0.3.279, PE timestamp
+2014-11-19, image base 0x400000). The same places in the DirectX 9 and tablet exes, and in the
+three exes Steam's November 2026 update replaced them with (same version number, PE timestamp
+2026-11-10, the same code at other addresses), are listed in [`exes.c`](../probe/exes.c); see
+[Other exes](#other-exes-directx-9-and-tablet).
 
 - [At a glance](#at-a-glance)
 - [Loading and safety checks](#loading-and-safety-checks)
@@ -83,10 +85,13 @@ How the fix changes the game, from safest to most specific:
   - the fog particle pools: the step launch call and the seeding's first instruction.
 
 Parts marked "Exact places" above use addresses that differ per exe: they look up the running
-exe (PE timestamp and image size) in `exes.c`, which has the final Steam DX11, DirectX 9 and
-tablet exes. Each part checks the code or data it relies on first. If anything differs (another
-build, an unknown exe), that part logs why in the events log and stays off.
+exe (PE timestamp and image size) in `exes.c`, which has Steam's DX11, DirectX 9 and tablet
+exes as built in 2014 and as rebuilt in 2026. Each part checks the code or data it relies on
+first. If anything differs (another build, an unknown exe), that part logs why in the events log
+and stays off. The log's third line names the build (`exe: Steam's DX11 build of 2026`).
 
+The 2026 exes have no CEG checks (`cegall.py` finds none); the rest of this section is about the
+2014 exes, and the rules stay the same for both.
 Steam's CEG checksums about 80% of the exe's code in 284 loops; `probe/cegall.py` lists every range.
 None of the import table or `.data` is covered, so the hooks and data writes are outside every
 check. The game's main loop is never patched: a 6-byte patch there made the game quit itself ~30 s

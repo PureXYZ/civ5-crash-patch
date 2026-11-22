@@ -73,6 +73,10 @@ for (t1, td, cnt), at_loops in loops.items():
         p = t1 + 4 * j + s32(t1 + 4 * j)
         for lp in at_loops: ranges.append((p, p + u32(td + 4 * j), lp, j))
 ranges.sort()
+if not ranges:  # the 2026 rebuild of the game: no loops, and no `mov eax, fn; call eax; ret` stubs
+    print('no CEG checksum loops found in this exe')
+    for site in a.sites: print('exe+0x%x: outside every range (there are none)' % int(site.partition(':')[0], 16))
+    raise SystemExit
 covered, end = 0, 0
 for s, e, _, _ in ranges:
     s, e = max(s, end, t_va), min(e, t_va + t_size)

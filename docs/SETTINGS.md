@@ -35,10 +35,11 @@ back to all defaults.
 Versions up to 1.4.0 read the file only from the `civprobe` folder. A file there still works, but
 one next to `msimg32.dll` takes its place.
 
-Parts that change exact places in the game work in the three exes of the final Steam version
+Parts that change exact places in the game work in the three exes of the Steam version
 (1.0.3.279): `CivilizationV_DX11.exe`, `CivilizationV.exe` (DirectX 9) and
-`CivilizationV_Tablet.exe`. They check the game's code before changing anything, and in another
-exe they log why and stay off. `D3DStats` needs a Direct3D 11 exe (DX11 or tablet).
+`CivilizationV_Tablet.exe`, both the 2014 files and the ones Steam's November 2026 update
+installs. They check the game's code before changing anything, and in another exe they log why
+and stay off. `D3DStats` needs a Direct3D 11 exe (DX11 or tablet).
 
 ## Common changes
 
