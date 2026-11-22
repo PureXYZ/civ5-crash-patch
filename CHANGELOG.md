@@ -26,7 +26,8 @@ log: its first line should give the new version, and its third line should read
 - **The game's own start-up fault** (a write to address 0 that the 2014 exes raise and handle at
   every start) doesn't happen in the new exes, so any such fault there is logged as a real one.
 - **Tools:** `cegall.py` says so when an exe has no checksum loops; `portmap.py --catalog` maps
-  from a reference exe other than the 2014 DX11 one.
+  from a reference exe other than the 2014 DX11 one; `vpcompat.py` compares with the tables of
+  the 2026 exes, which the Community Patch DLL's address table is now for.
 
 ## 1.4.1
 

@@ -460,7 +460,8 @@ No fix can be safe against changes nobody has seen, so the repository watches fo
 their data addresses against the objects the fix manages, their code against the code the fix
 reads. It also looks at every open pull request there, and every one merged since the last review,
 for changes to their exe folder and new uses of low-level calls (page protection, heaps, import
-tables, exception filters, threads). The result must match
+tables, exception filters, threads). Their table is for the 2026 exes, so the comparison uses
+the fix's tables of that build. The result must match
 [`vpcompat.txt`](../probe/vpcompat.txt). A [weekly run](../.github/workflows/upstream.yml) fails
 when something is new, with what it found; after a review, `vpcompat.py --update` records it.
 

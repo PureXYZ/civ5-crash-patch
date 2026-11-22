@@ -9,6 +9,9 @@
 #     their rules every symbol that depends on it is dropped: that feature of theirs stays off.
 #   - their data addresses against the objects this patch manages (queues, tables, pools).
 #   - their code addresses against the code this patch reads or calls (same function = same job).
+# Their table holds one build of the three exes, the 2026 rebuild (it held the 2014 exes until
+# they moved it), so the comparison uses this patch's tables of that build (BUILD). Their header
+# names the PE timestamps it is for; if it stops naming BUILD's, the report says so.
 # It also fingerprints their Exe folder, and looks at every open pull request and every one merged
 # since the last review for changes to that folder or new uses of low-level calls (page
 # protection, heaps, import tables, exception filters, threads).
@@ -32,6 +35,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BASELINE = os.path.join(HERE, 'vpcompat.txt')
 BASE = 0x400000              # their table holds addresses at the preferred base; exes.c holds offsets
 COLUMNS = ['DX11', 'DX9', 'tablet']  # their column order, by this patch's exe names
+BUILD = '2026'               # the build of the exes their columns are for (exes.c: .build)
 NEAR = 0x40                  # code this close to one of the patch's places counts as the same code
 CHECK_LEN = {'EXE_ABS32': 4, 'EXE_REL32': 5, 'EXE_VAL8': 1, 'EXE_VAL32': 4}
 CODE_KINDS, DATA_KINDS = ('EXE_FUNCTION', 'EXE_CODE'), ('EXE_DATA', 'EXE_VTABLE')
@@ -69,7 +73,7 @@ def patch_fields():
 
     def put(kind, src, names, *more):
         for n in names.split(): f[n] = (kind, src) + more
-    put('x', '', 'name timestamp imageSize streamHalves recordRound texPoolFixups texRecFixups texSiteCount')
+    put('x', '', 'name build timestamp imageSize streamHalves recordRound texPoolFixups texRecFixups texSiteCount')
     put('c', 'probe.c', 'gameFault')
     put('c', 'cmdstream.c', 'streamCtor ctorRets flip spareCallers')
     put('w', 'cmdstream.c', 'streamSplit', split, 'CommandStreamSplit', True, 0)
@@ -110,7 +114,7 @@ def patch_fields():
 
 def patch_exes():
     """exe name -> writes [(rva, len, place, setting, default on)], code [(rva, place)],
-    data [(rva, size, place)] from exes.c."""
+    data [(rva, size, place)] and the PE timestamp, from exes.c's tables of BUILD."""
     src = strip_comments(open(os.path.join(HERE, 'exes.c'), encoding='utf-8').read())
     fields = patch_fields()
     arrays = {m.group(1): [int(t, 16) for t in re.findall(r'\{(0x[0-9a-fA-F]+),', m.group(2))]
@@ -128,7 +132,8 @@ def patch_exes():
             elif v.startswith('"'): vals[k] = v.strip('"')
             elif re.fullmatch(r'0x[0-9a-fA-F]+|\d+', v): vals[k] = int(v, 0)
             else: vals[k] = v  # an array's name or a sizeof
-        e = {'writes': [], 'code': [], 'data': []}
+        if vals.get('build') != BUILD: continue
+        e = {'writes': [], 'code': [], 'data': [], 'timestamp': vals.get('timestamp', 0)}
         for k, v in vals.items():
             kind = fields[k][0]
             if kind == 'x' or v == 0: continue
@@ -244,6 +249,8 @@ def report(table_text, patch):
     syms, checks, notes = parse_table(table_text)
     out = ['table: %d symbols, %d checks' % (len(syms), len(checks))]
     out += ['  ! ' + n for n in notes]
+    out += ['  ! the table no longer names the %s %s exe (PE timestamp %08X): another build?' % (BUILD, exe, patch[exe]['timestamp'])
+            for exe in COLUMNS if '%08X' % patch[exe]['timestamp'] not in table_text.upper()]
     for s in syms:
         out.append('  %s %s %s' % (s['name'], s['kind'], ' '.join('-' if v is None else '%08x' % v for v in s['vals'])))
     for col, exe in enumerate(COLUMNS):

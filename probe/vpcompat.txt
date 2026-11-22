@@ -1,25 +1,50 @@
 # Written by vpcompat.py --update after a review; see the top of vpcompat.py.
 # "reviewed" lines are fingerprints of pull requests there that were looked at.
-checked 2026-11-12
-reviewed 125ed137b432
+checked 2026-11-22
 reviewed 200a1b9f170e
+reviewed 25f6fa9a75c0
 reviewed 3d2240942244
-reviewed 5ac6b645753a
-reviewed c51cd28073cf
-folder: 9 files, ab674403eafb
-table: 12 symbols, 8 checks
-  LoadCvGameCoreDLL_SetEngineUserInterface EXE_CODE 0047ba70 0072b7f0 004cb690
+reviewed 65cf78e6aaa2
+reviewed 7ee01aeb7393
+reviewed 9cdbaa6d5e26
+folder: 9 files, 7609e99e8e44
+table: 36 symbols, 27 checks
+  LoadCvGameCoreDLL_SetEngineUserInterface EXE_CODE 007b35f0 007e2460 007b52d0
   InterfaceBuddy_UserInterface EXE_OFFSET 00000004 00000004 00000004
-  InterfaceBuddy_dtor EXE_FUNCTION 006b74d0 00472fc0 0054d990
-  InterfaceBuddy_vftable EXE_VTABLE 00a3fe78 00a35198 00a42f00
-  InterfaceBuddy_UserInterface_vftable EXE_VTABLE 00a04240 00a00928 009f3738
-  InterfaceBuddy_dtor_UnregisterYieldIcons EXE_CODE 006b76cb 004731bb 0054db8b
+  InterfaceBuddy_dtor EXE_FUNCTION 00672f10 006a2aa0 006739d0
+  InterfaceBuddy_vftable EXE_VTABLE 0096f490 00961ce8 00971568
+  InterfaceBuddy_UserInterface_vftable EXE_VTABLE 0096f230 00961a88 00971308
+  InterfaceBuddy_dtor_UnregisterYieldIcons EXE_CODE 0067310b 006a2c9b 00673bcb
   InterfaceBuddy_YieldIconManager EXE_OFFSET 00000010 00000010 00000010
-  YieldIconManager_UnregisterForEvents EXE_FUNCTION 00711dc0 0069dde0 006bc7b0
-  YieldIconManager_UnregisterForEvents_unk17 EXE_FUNCTION 00874eb0 0089aa50 00876940
-  g_EventSystemLocalMachine EXE_DATA 01a0e400 019fe200 01a0fe80
-  Civ5NetMessage_s_wantForceResync EXE_DATA 02dd2f68 02dc2d68 02dd4f50
-  ResetNetMessageStatics_ClearWantForceResync EXE_CODE 00525bd3 004e1193 00781b73
+  YieldIconManager_UnregisterForEvents EXE_FUNCTION 0068b240 006b9e00 0068c790
+  YieldIconManager_UnregisterForEvents_unk17 EXE_FUNCTION 00689fd0 006b8b90 0068b520
+  g_EventSystemLocalMachine EXE_DATA 01893980 01883800 01896980
+  Civ5NetMessage_s_wantForceResync EXE_DATA 02c63dd8 02c53b78 02c66de0
+  ResetNetMessageStatics_ClearWantForceResync EXE_CODE 007c0543 007efa13 007c2053
+  cvLuaScriptSystem_ms_apSingletonInstance EXE_DATA 02c62ec8 02c52c88 02c65ed0
+  cvLuaScriptSystem_TunerListener EXE_OFFSET 00000004 00000004 00000004
+  lHostServerGame_EnteringMultiplayerStagingRoom EXE_CODE 00764963 00793333 007661e3
+  cvTunerListener_ExitingMultiplayerStagingRoom EXE_FUNCTION 0077e5a0 007ad8e0 007800c0
+  cvTunerListener_ListenSocket EXE_OFFSET 00000020 00000020 00000020
+  g_bEnableTuner EXE_DATA 00b4933e 00b3923e 00b4c33e
+  GameViewState_UpdateSystems_UpdateCityBuildingSim EXE_CODE 004c71c6 004f8146 004c70b6
+  g_cvCityBuildingSim EXE_DATA 02896590 02886410 02899590
+  cvCityBuildingSim_Update EXE_CODE 00601540 006308b0 006017f0
+  cvCityBuildingSim_OnWonderRemoved EXE_CODE 00603010 006323f0 006032c0
+  cvCityBuildingSim_DeferFlags EXE_OFFSET 001624c4 001624c4 001624c4
+  cvCityBuildingSim_SlotGrid EXE_OFFSET 00083f38 00083f38 00083f38
+  cvCityBuildingSim_SlotGrid_GetSlot EXE_FUNCTION 005fc750 0062bb10 005fca40
+  cvCityBuildingSim_Cities EXE_OFFSET 0000023c 0000023c 0000023c
+  cvCityBuildingSim_NumCities EXE_OFFSET 00000240 00000240 00000240
+  cvCityBuildingSim_CityDataSize EXE_OFFSET 000006f4 000006f4 000006f4
+  CityData_Free EXE_OFFSET 00000010 00000010 00000010
+  CityData_PalaceArtEntry EXE_OFFSET 0000058c 0000058c 0000058c
+  CityData_VisHandle EXE_OFFSET 000006f0 000006f0 000006f0
+  cvCityBuildingSim_MarkDirty EXE_FUNCTION 005fe070 0062d3e0 005fe320
+  cvCityBuildingSim_CreateNewCity EXE_CODE 00600790 0062fb00 00600a40
+  CityData_Hex EXE_OFFSET 0000002c 0000002c 0000002c
+  g_cvCityVisSystem EXE_DATA 00b562f8 00b461a8 00b592f8
+  cvCityVisSystem_RemoveWonder EXE_FUNCTION 004e0910 00511730 004e0750
 DX11: data  g_EventSystemLocalMachine = queueObj (msgqueue.c) + 0x0
 DX9: data  g_EventSystemLocalMachine = queueObj (msgqueue.c) + 0x0
 tablet: data  g_EventSystemLocalMachine = queueObj (msgqueue.c) + 0x0
